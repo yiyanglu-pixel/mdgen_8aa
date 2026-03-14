@@ -121,6 +121,49 @@ To analyze the ATLAS rollouts, follow the instructions at https://github.com/bji
 
 Tables and figures in the paper are extracted from these pickle files.
 
+## Octapeptides (8AA) Support
+
+This repository has been extended to support Octapeptides (8-residue peptides) in addition to the original tetrapeptide (4AA) and ATLAS workflows.
+
+### Data Directory Convention
+
+Octapeptides data should be organized as:
+```
+octapeptides_data/ONE_octapeptides/
+  opep_0000/topology.pdb, prod.xtc
+  opep_0001/topology.pdb, prod.xtc
+  ...
+  opep_1099/topology.pdb, prod.xtc
+```
+
+### Workflow
+
+**1. Generate split CSVs** (after data is available):
+```
+python -m scripts.generate_8AA_splits --data_dir octapeptides_data/ONE_octapeptides --outdir splits
+```
+
+**2. Preprocess** (stride=100, 10ps intervals, matching 4AA):
+```
+python -m scripts.prep_sims --split splits/8AA.csv --sim_dir octapeptides_data/ONE_octapeptides --outdir data/8AA_data --num_workers [N] --suffix _i100 --stride 100 --octapeptides
+```
+
+**3. Train** (forward simulation example):
+```
+MODEL_DIR=workdir/8AA_sim python train.py --sim_condition --train_split splits/8AA_train.csv --val_split splits/8AA_val.csv --data_dir data/8AA_data --crop 8 --abs_pos_emb --num_frames 100 --prepend_ipa --suffix _i100 --epochs 1000 --wandb --run_name [NAME]
+```
+
+**4. Inference** (forward simulation):
+```
+python sim_inference.py --sim_ckpt workdir/8AA_sim/best.ckpt --data_dir data/8AA_data --split splits/8AA_test.csv --num_frames 100 --num_rollouts 10 --suffix _i100 --out_dir [DIR]
+```
+
+### Limitations (v1)
+
+- Design/inpainting: indices are auto-derived from `--crop` (terminals=conditioned, interior=designed) but have **not been validated** on 8AA data.
+- Analysis scripts may need adjustments for 8AA-specific metrics.
+- Multi-chain, membrane proteins, and ligand conditioning are not supported.
+
 ## License
 
 MIT. Additional licenses may apply for third-party source code noted in file headers.
