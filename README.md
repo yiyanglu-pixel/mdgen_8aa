@@ -143,19 +143,27 @@ octapeptides_data/ONE_octapeptides/
 python -m scripts.generate_8AA_splits --data_dir octapeptides_data/ONE_octapeptides --outdir splits
 ```
 
-**2. Preprocess** (stride=100, 10ps intervals, matching 4AA):
+**2. Preprocess** — choose stride based on your data version (both produce ~10,000 frames at 10ps intervals, matching 4AA):
 ```
+# 10ns high-frequency data (1M frames, frame interval 10fs → stride=1000)
+python -m scripts.prep_sims --split splits/8AA.csv --sim_dir octapeptides_data/ONE_octapeptides --outdir data/8AA_data --num_workers [N] --suffix _i1000 --stride 1000 --octapeptides
+
+# 100ns production data (1M frames, frame interval 100fs → stride=100)
 python -m scripts.prep_sims --split splits/8AA.csv --sim_dir octapeptides_data/ONE_octapeptides --outdir data/8AA_data --num_workers [N] --suffix _i100 --stride 100 --octapeptides
 ```
 
-**3. Train** (forward simulation example):
+**3. Train** (forward simulation example, use suffix matching your preprocessing):
 ```
+# With 10ns data (suffix _i1000)
+MODEL_DIR=workdir/8AA_sim python train.py --sim_condition --train_split splits/8AA_train.csv --val_split splits/8AA_val.csv --data_dir data/8AA_data --crop 8 --abs_pos_emb --num_frames 100 --prepend_ipa --suffix _i1000 --epochs 1000 --wandb --run_name [NAME]
+
+# With 100ns data (suffix _i100)
 MODEL_DIR=workdir/8AA_sim python train.py --sim_condition --train_split splits/8AA_train.csv --val_split splits/8AA_val.csv --data_dir data/8AA_data --crop 8 --abs_pos_emb --num_frames 100 --prepend_ipa --suffix _i100 --epochs 1000 --wandb --run_name [NAME]
 ```
 
-**4. Inference** (forward simulation):
+**4. Inference** (forward simulation, match suffix to training data):
 ```
-python sim_inference.py --sim_ckpt workdir/8AA_sim/best.ckpt --data_dir data/8AA_data --split splits/8AA_test.csv --num_frames 100 --num_rollouts 10 --suffix _i100 --out_dir [DIR]
+python sim_inference.py --sim_ckpt workdir/8AA_sim/best.ckpt --data_dir data/8AA_data --split splits/8AA_test.csv --num_frames 100 --num_rollouts 10 --suffix _i1000 --out_dir [DIR]
 ```
 
 ### Limitations (v1)
