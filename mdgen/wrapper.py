@@ -38,6 +38,7 @@ def get_log_mean(log):
     return out
 
 
+# Legacy constants for 4AA (kept for reference; replaced by per-instance attributes in NewMDGenWrapper)
 DESIGN_IDX = [1, 2]
 COND_IDX = [0, 3]
 DESIGN_MAP_TO_COND = [0, 0, 3, 3]
@@ -192,6 +193,12 @@ class NewMDGenWrapper(Wrapper):
         ]:
             if not hasattr(args, key):
                 setattr(args, key, False)
+        # Derive design/inpainting indices from crop size (terminals=cond, interior=design)
+        crop = args.crop
+        self.design_idx = list(range(1, crop - 1))
+        self.cond_idx = [0, crop - 1]
+        self.design_map_to_cond = [0] * (crop // 2) + [crop - 1] * (crop - crop // 2)
+
         # args.latent_dim = 7 if not self.args.tps_condition else 14
         latent_dim = 21 if not (self.args.tps_condition or self.args.inpainting or self.args.dynamic_mpnn) else 28
         if args.design:
@@ -233,11 +240,11 @@ class NewMDGenWrapper(Wrapper):
         if self.args.cond_interval:
             cond_mask[:, ::self.args.cond_interval] = 1
         if self.args.inpainting or self.args.dynamic_mpnn or self.args.mpnn:
-            cond_mask[:, :, COND_IDX] = 1
+            cond_mask[:, :, self.cond_idx] = 1
 
         aatype_mask = torch.ones_like(batch['seqres'])
         if self.args.design:
-            aatype_mask[:, DESIGN_IDX] = 0
+            aatype_mask[:, self.design_idx] = 0
         ######## 
         return {
             'latents': batch['latents'].float(),
@@ -296,9 +303,9 @@ class NewMDGenWrapper(Wrapper):
         B, T, L = rigids.shape
         if self.args.design_key_frames:
             rigids = Rigid.cat([
-                rigids[:, :1, DESIGN_MAP_TO_COND],  # replace designed rototranslations in the key frames
+                rigids[:, :1, self.design_map_to_cond],  # replace designed rototranslations in the key frames
                 rigids[:, 1:-1],
-                rigids[:, -1:, DESIGN_MAP_TO_COND]
+                rigids[:, -1:, self.design_map_to_cond]
             ], 1)
 
         if self.args.no_offsets:
@@ -321,7 +328,7 @@ class NewMDGenWrapper(Wrapper):
             latents = torch.cat([offsets, torch.zeros_like(batch['torsions'].view(B, T, L, 14))], -1)
         elif self.args.no_design_torsion:
             torsions_ = batch['torsions'].clone()
-            torsions_[:, :, DESIGN_IDX] = 0
+            torsions_[:, :, self.design_idx] = 0
             latents = torch.cat([offsets, torsions_.view(B, T, L, 14)], -1)
         else:
             latents = torch.cat([offsets, batch['torsions'].view(B, T, L, 14)], -1)
@@ -343,11 +350,11 @@ class NewMDGenWrapper(Wrapper):
         if self.args.cond_interval:
             cond_mask[:, ::self.args.cond_interval] = 1
         if self.args.inpainting or self.args.dynamic_mpnn or self.args.mpnn:
-            cond_mask[:, :, COND_IDX] = 1
+            cond_mask[:, :, self.cond_idx] = 1
 
         aatype_mask = torch.ones_like(batch['seqres'])
         if self.args.design:
-            aatype_mask[:, DESIGN_IDX] = 0
+            aatype_mask[:, self.design_idx] = 0
         ######## 
 
         return {
