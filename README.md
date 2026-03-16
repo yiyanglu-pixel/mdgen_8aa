@@ -127,29 +127,35 @@ This repository has been extended to support Octapeptides (8-residue peptides) i
 
 ### Data Directory Convention
 
-Octapeptides data should be organized as:
+Octapeptides data should be organized as (example path on cloud server: `/localhome3/lyy/8pep_gb_sim/octapeptides_data/ONE_octapeptides/`):
 ```
 octapeptides_data/ONE_octapeptides/
-  opep_0000/topology.pdb, prod.xtc
-  opep_0001/topology.pdb, prod.xtc
+  opep_0000/topology.pdb, topology_noH.pdb, prod.xtc
+  opep_0001/topology.pdb, topology_noH.pdb, prod.xtc
   ...
-  opep_1099/topology.pdb, prod.xtc
+  opep_1099/topology.pdb, topology_noH.pdb, prod.xtc
 ```
+
+> **Note**: `topology_noH.pdb` (hydrogen-stripped) is present but **not used** by the pipeline. The XTC trajectory contains H atom coordinates, so `topology.pdb` (full atoms) is required for loading; hydrogen atoms are stripped in-memory during preprocessing.
 
 ### Workflow
 
 **1. Generate split CSVs** (after data is available):
-```
-python -m scripts.generate_8AA_splits --data_dir octapeptides_data/ONE_octapeptides --outdir splits
+```bash
+SIM_DIR=/localhome3/lyy/8pep_gb_sim/octapeptides_data/ONE_octapeptides
+
+python -m scripts.generate_8AA_splits --data_dir $SIM_DIR --outdir splits
 ```
 
-**2. Preprocess** — choose stride based on your data version (both produce ~10,000 frames at 10ps intervals, matching 4AA):
-```
-# 10ns high-frequency data (1M frames, frame interval 10fs → stride=1000)
-python -m scripts.prep_sims --split splits/8AA.csv --sim_dir octapeptides_data/ONE_octapeptides --outdir data/8AA_data --num_workers [N] --suffix _i1000 --stride 1000 --octapeptides
+**2. Preprocess** — choose stride based on your data version:
+```bash
+SIM_DIR=/localhome3/lyy/8pep_gb_sim/octapeptides_data/ONE_octapeptides
 
-# 100ns production data (1M frames, frame interval 100fs → stride=100)
-python -m scripts.prep_sims --split splits/8AA.csv --sim_dir octapeptides_data/ONE_octapeptides --outdir data/8AA_data --num_workers [N] --suffix _i100 --stride 100 --octapeptides
+# 10ns high-frequency data (1M frames, frame interval 10fs, stride=1000 → 1,000 frames at 10ps)
+python -m scripts.prep_sims --split splits/8AA.csv --sim_dir $SIM_DIR --outdir data/8AA_data --num_workers 8 --suffix _i1000 --stride 1000 --octapeptides
+
+# 100ns production data (1M frames, frame interval 100fs, stride=100 → 10,000 frames at 10ps)
+python -m scripts.prep_sims --split splits/8AA.csv --sim_dir $SIM_DIR --outdir data/8AA_data --num_workers 8 --suffix _i100 --stride 100 --octapeptides
 ```
 
 **3. Train** (forward simulation example, use suffix matching your preprocessing):
