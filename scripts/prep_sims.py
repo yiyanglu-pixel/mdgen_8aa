@@ -76,7 +76,8 @@ elif args.octapeptides:
         xtc_path = f'{args.sim_dir}/{name}/prod.xtc'
 
         # Use AMBER prmtop as topology (matches XTC atom set exactly)
-        traj = mdtraj.load(xtc_path, top=prmtop_path)
+        top = mdtraj.load_prmtop(prmtop_path)
+        traj = mdtraj.load(xtc_path, top=top)
         traj.atom_slice([a.index for a in traj.top.atoms if a.element.symbol != 'H'], True)
 
         if traj.n_residues != 8:
