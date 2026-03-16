@@ -75,9 +75,18 @@ elif args.octapeptides:
         top_full = f'{args.sim_dir}/{name}/topology.pdb'
         xtc_path = f'{args.sim_dir}/{name}/prod.xtc'
 
-        # XTC contains H atoms matching topology.pdb; load and strip H
-        traj = mdtraj.load(xtc_path, top=top_full)
-        traj.atom_slice([a.index for a in traj.top.atoms if a.element.symbol != 'H'], True)
+        top_pdb = mdtraj.load(top_full)
+        heavy_idx = [a.index for a in top_pdb.top.atoms if a.element.symbol != 'H']
+
+        try:
+            # Try full topology first (XTC saved with all atoms incl. H)
+            traj = mdtraj.load(xtc_path, top=top_full)
+            traj.atom_slice([a.index for a in traj.top.atoms if a.element.symbol != 'H'], True)
+        except ValueError:
+            # XTC was saved with heavy atoms only; use heavy-atom topology
+            heavy_top = top_pdb.atom_slice(heavy_idx)
+            traj = mdtraj.load(xtc_path, top=heavy_top.top)
+
         traj.superpose(traj)
         arr = traj_to_atom14(traj)
         np.save(f'{args.outdir}/{name}{args.suffix}.npy', arr[::args.stride])
