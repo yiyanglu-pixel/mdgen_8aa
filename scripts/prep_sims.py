@@ -72,8 +72,8 @@ if args.atlas:
             np.save(f'{args.outdir}/{name}_R{i}{args.suffix}.npy', arr[::args.stride])
 elif args.octapeptides:
     def do_job(name):
-        traj = mdtraj.load(f'{args.sim_dir}/{name}/prod.xtc', top=f'{args.sim_dir}/{name}/topology.pdb')
-        traj.atom_slice([a.index for a in traj.top.atoms if a.element.symbol != 'H'], True)
+        # XTC is already hydrogen-free; use topology_noH.pdb to match atom count
+        traj = mdtraj.load(f'{args.sim_dir}/{name}/prod.xtc', top=f'{args.sim_dir}/{name}/topology_noH.pdb')
         traj.superpose(traj)
         arr = traj_to_atom14(traj)
         np.save(f'{args.outdir}/{name}{args.suffix}.npy', arr[::args.stride])
