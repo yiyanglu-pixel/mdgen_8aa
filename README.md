@@ -136,7 +136,7 @@ octapeptides_data/ONE_octapeptides/
   opep_1099/topology.pdb, topology_noH.pdb, prod.xtc
 ```
 
-> **Note**: The XTC trajectory is already hydrogen-free, so `topology_noH.pdb` is used for loading (atom counts must match). `topology.pdb` (full atoms including H) is used only by the split generation script to extract residue sequences.
+> **Note**: The XTC trajectory **contains H atoms** matching `topology.pdb`. During preprocessing, the trajectory is loaded with `topology.pdb` and H atoms are stripped in-memory. `topology_noH.pdb` is not used by the pipeline.
 
 ### Workflow
 
