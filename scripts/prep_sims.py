@@ -72,8 +72,25 @@ if args.atlas:
             np.save(f'{args.outdir}/{name}_R{i}{args.suffix}.npy', arr[::args.stride])
 elif args.octapeptides:
     def do_job(name):
-        # XTC is already hydrogen-free; use topology_noH.pdb to match atom count
-        traj = mdtraj.load(f'{args.sim_dir}/{name}/prod.xtc', top=f'{args.sim_dir}/{name}/topology_noH.pdb')
+        top_full = f'{args.sim_dir}/{name}/topology.pdb'
+        top_noH = f'{args.sim_dir}/{name}/topology_noH.pdb'
+        xtc_path = f'{args.sim_dir}/{name}/prod.xtc'
+
+        # Peek at XTC atom count (reads only first frame, very fast)
+        with mdtraj.formats.XTCTrajectoryFile(xtc_path, 'r') as f:
+            xyz, _, _, _ = f.read(n_frames=1)
+        xtc_n_atoms = xyz.shape[1]
+
+        # Choose topology that matches XTC atom count
+        pdb_full = mdtraj.load(top_full)
+        if xtc_n_atoms == pdb_full.n_atoms:
+            # XTC contains H atoms; load with full topology then strip H
+            traj = mdtraj.load(xtc_path, top=top_full)
+            traj.atom_slice([a.index for a in traj.top.atoms if a.element.symbol != 'H'], True)
+        else:
+            # XTC is already H-free; load with noH topology
+            traj = mdtraj.load(xtc_path, top=top_noH)
+
         traj.superpose(traj)
         arr = traj_to_atom14(traj)
         np.save(f'{args.outdir}/{name}{args.suffix}.npy', arr[::args.stride])
