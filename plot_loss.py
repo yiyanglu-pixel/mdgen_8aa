@@ -14,13 +14,18 @@ def parse_log(log_path):
     metrics = defaultdict(list)
     with open(log_path) as f:
         for line in f:
-            # log.out format: timestamp [host:pid] [level] {'epoch': ..., 'loss': ..., ...}
-            match = re.search(r"\{.*'epoch'.*\}", line)
+            # Match any dict-like string in the line
+            match = re.search(r"\{[^{}]+\}", line)
             if not match:
                 continue
             try:
                 d = ast.literal_eval(match.group())
             except (ValueError, SyntaxError):
+                continue
+            if not isinstance(d, dict):
+                continue
+            # Only keep entries that have epoch (structured log lines)
+            if 'epoch' not in d:
                 continue
             for k, v in d.items():
                 if isinstance(v, (int, float)):
@@ -28,23 +33,24 @@ def parse_log(log_path):
     return metrics
 
 def plot(metrics, save=False, out_path="loss_curve.png"):
-    keys_to_plot = [k for k in ['loss', 'loss_continuous', 'loss_discrete'] if k in metrics]
-    if not keys_to_plot:
+    # Auto-detect loss keys: train_loss, iter_loss, loss, loss_continuous, etc.
+    loss_keys = [k for k in metrics if 'loss' in k.lower()]
+    if not loss_keys:
         print("No loss metrics found in log. Available keys:", list(metrics.keys()))
         return
 
-    epochs = metrics.get('epoch', list(range(len(metrics[keys_to_plot[0]]))))
+    print(f"Plotting: {loss_keys}")
 
-    fig, axes = plt.subplots(len(keys_to_plot), 1, figsize=(12, 4 * len(keys_to_plot)), sharex=True)
-    if len(keys_to_plot) == 1:
+    fig, axes = plt.subplots(len(loss_keys), 1, figsize=(12, 4 * len(loss_keys)), sharex=True)
+    if len(loss_keys) == 1:
         axes = [axes]
 
-    for ax, key in zip(axes, keys_to_plot):
+    for ax, key in zip(axes, loss_keys):
         vals = metrics[key]
-        x = epochs[:len(vals)]
+        x = list(range(len(vals)))
         ax.plot(x, vals, linewidth=0.5, alpha=0.3, label=f'{key} (raw)')
         # moving average
-        window = max(1, len(vals) // 100)
+        window = max(1, len(vals) // 50)
         if window > 1:
             smoothed = [sum(vals[max(0,i-window):i+1]) / len(vals[max(0,i-window):i+1]) for i in range(len(vals))]
             ax.plot(x, smoothed, linewidth=1.5, label=f'{key} (smoothed, w={window})')
@@ -52,7 +58,7 @@ def plot(metrics, save=False, out_path="loss_curve.png"):
         ax.legend()
         ax.grid(True, alpha=0.3)
 
-    axes[-1].set_xlabel('Epoch')
+    axes[-1].set_xlabel('Log Entry Index')
     axes[0].set_title('Training Loss Curves')
     plt.tight_layout()
 
@@ -71,8 +77,8 @@ if __name__ == "__main__":
     metrics = parse_log(log_path)
     print(f"Parsed {len(metrics.get('epoch', []))} log entries")
     print(f"Available metrics: {list(metrics.keys())}")
-    if metrics.get('loss'):
-        print(f"Loss range: {min(metrics['loss']):.4f} ~ {max(metrics['loss']):.4f}")
-        print(f"First 5 loss: {metrics['loss'][:5]}")
-        print(f"Last 5 loss:  {metrics['loss'][-5:]}")
+    for key in sorted(metrics.keys()):
+        if 'loss' in key.lower():
+            vals = metrics[key]
+            print(f"  {key}: {len(vals)} entries, range [{min(vals):.4f}, {max(vals):.4f}], last 5: {[round(v,4) for v in vals[-5:]]}")
     plot(metrics, save=save, out_path=log_path.replace('.out', '_loss.png').replace('.log', '_loss.png'))
