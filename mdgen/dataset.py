@@ -51,6 +51,18 @@ class MDGenDataset(torch.utils.data.Dataset):
 
         # arr should be in ANGSTROMS
         frames = atom14_to_frames(torch.from_numpy(arr))
+        # Guard against NaN from degenerate backbone geometry in from_3_points
+        if torch.any(torch.isnan(frames._trans)):
+            frames = Rigid(
+                torch.nan_to_num(frames._trans, nan=0.0),
+                frames._rots,
+            )
+        if torch.any(torch.isnan(frames._rots._rot_mats)):
+            from .rigid_utils import Rotation
+            frames = Rigid(
+                frames._trans,
+                Rotation(rot_mats=torch.nan_to_num(frames._rots._rot_mats, nan=0.0)),
+            )
         seqres = np.array([restype_order[c] for c in seqres])
         aatype = torch.from_numpy(seqres)[None].expand(self.args.num_frames, -1)
         atom37 = torch.from_numpy(atom14_to_atom37(arr, aatype)).float()
@@ -67,7 +79,10 @@ class MDGenDataset(torch.utils.data.Dataset):
                 'mask': restype_atom37_mask[seqres], # (L,)
             }
         torsions, torsion_mask = atom37_to_torsions(atom37, aatype)
-        
+        # Zero out NaN torsions from degenerate geometry (e.g. masked atoms at origin)
+        # NaN * 0 = NaN in PyTorch, so nan_to_num must come before any masking
+        torsions = torch.nan_to_num(torsions, nan=0.0)
+
         torsion_mask = torsion_mask[0]
         
         if self.args.atlas:

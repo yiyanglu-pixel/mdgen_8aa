@@ -324,6 +324,9 @@ class NewMDGenWrapper(Wrapper):
             offsets = torch.cat([offsets, offsets_r], -1)
             frame_loss_mask = torch.cat([frame_loss_mask, frame_loss_mask], -1)
 
+        # Guard against NaN in offsets from degenerate quaternion conversion
+        offsets = torch.nan_to_num(offsets, nan=0.0)
+
         if self.args.no_torsion:
             latents = torch.cat([offsets, torch.zeros_like(batch['torsions'].view(B, T, L, 14))], -1)
         elif self.args.no_design_torsion:
@@ -388,6 +391,9 @@ class NewMDGenWrapper(Wrapper):
         )
         self.log('model_dur', time.time() - start)
         loss = out_dict['loss']
+        # Guard against NaN loss corrupting model weights via gradient
+        if torch.any(torch.isnan(loss)):
+            loss = torch.where(torch.isnan(loss), torch.zeros_like(loss), loss)
         self.log('loss', loss)
 
         if self.args.design:
