@@ -22,6 +22,9 @@ Usage:
       --pdb_id opep_0000 opep_0001 \
       --save --plot
 """
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
 import argparse
 parser = argparse.ArgumentParser(description='Analyze 8AA forward simulation results')
 parser.add_argument('--mddir', type=str,
