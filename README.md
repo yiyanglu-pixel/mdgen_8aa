@@ -168,9 +168,84 @@ MODEL_DIR=workdir/8AA_sim python train.py --sim_condition --train_split splits/8
 ```
 
 **4. Inference** (forward simulation, match suffix to training data):
+```bash
+# Test run (1,000 frames: 100 × 10 rollouts)
+python sim_inference.py --sim_ckpt workdir/8AA_sim/best.ckpt --data_dir data/8AA_data --split splits/8AA_test.csv --num_frames 100 --num_rollouts 10 --suffix _i1000 --xtc --out_dir results/8AA_test_1k
+
+# Full run (10,000 frames: 1,000 × 10 rollouts, matching 4AA paper config)
+python sim_inference.py --sim_ckpt workdir/8AA_sim/best.ckpt --data_dir data/8AA_data --split splits/8AA_test.csv --num_frames 1000 --num_rollouts 10 --suffix _i1000 --xtc --out_dir results/8AA_full_10k
 ```
-python sim_inference.py --sim_ckpt workdir/8AA_sim/best.ckpt --data_dir data/8AA_data --split splits/8AA_test.csv --num_frames 100 --num_rollouts 10 --suffix _i1000 --out_dir [DIR]
+
+| Config | `--num_frames` | `--num_rollouts` | Total frames | Notes |
+|--------|---------------|-----------------|-------------|-------|
+| Test   | 100           | 10              | 1,000       | Quick validation |
+| Full   | 1,000         | 10              | 10,000      | Matches 4AA paper |
+
+**5. Analysis**:
+```bash
+python scripts/analyze_8AA_sim.py \
+    --pdbdir results/8AA_full_10k \
+    --mddir /localhome3/lyy/8pep_gb_sim/octapeptides_data/ONE_octapeptides \
+    --split splits/8AA_test.csv \
+    --save --plot \
+    --num_workers 16
 ```
+
+**6. Reading results**:
+
+The analysis script produces three types of output:
+
+**(a) Terminal summary** — printed at the end of the run:
+- Per-feature JSD table (Mean / Std / N for each torsion angle)
+- Overall torsion JSD (excluding TICA)
+- TICA-0 and TICA-0,1 JSD
+- MSM metastable state probability MAE
+
+**(b) Pickle file** — `{pdbdir}/out_8AA.pkl`, a dict keyed by peptide name:
+```python
+import pickle, numpy as np
+
+with open('results/8AA_full_10k/out_8AA.pkl', 'rb') as f:
+    out = pickle.load(f)
+
+# out['opep_XXXX'] contains:
+#   ['JSD']                    — dict of feature_name → JSD value
+#                                includes torsion angles, Ramachandran pairs,
+#                                TICA-0, and TICA-0,1
+#   ['md_decorrelation']       — dict of feature_name → autocorrelation array (MD ref)
+#   ['our_decorrelation']      — dict of feature_name → autocorrelation array (generated)
+#   ['ref_metastable_probs']   — 10-state MSM distribution (MD ref)
+#   ['traj_metastable_probs']  — 10-state MSM distribution (generated)
+#   ['msm_pi']                 — MSM stationary distribution (MD ref)
+#   ['traj_pi']                — MSM stationary distribution (generated)
+#   ['msm_transition_matrix']  — 10×10 transition matrix (MD ref)
+#   ['traj_transition_matrix'] — 10×10 transition matrix (generated)
+#   ['features']               — list of feature names
+
+# Quick aggregate statistics:
+all_torsion_jsd = []
+for name, r in out.items():
+    if 'error' in r:
+        continue
+    for feat, jsd in r['JSD'].items():
+        if 'TICA' not in feat and '|' not in feat:
+            all_torsion_jsd.append(jsd)
+print(f'Torsion JSD: {np.nanmean(all_torsion_jsd):.4f} ± {np.nanstd(all_torsion_jsd):.4f}')
+```
+
+**(c) Per-peptide PDF plots** — `{pdbdir}/{name}_analysis.pdf`, containing:
+- Torsion angle histograms (blue = MD reference, orange = generated)
+- Decorrelation curves for backbone and sidechain torsions
+- TICA free energy surface comparison (MD vs generated)
+- TICA autocorrelation curves
+
+**Key metrics** (lower is better):
+
+| Metric | Meaning |
+|--------|---------|
+| Torsion JSD | Torsion angle distribution match |
+| TICA-0,1 JSD | Slow dynamics (free energy surface) match |
+| MSM prob MAE | Metastable state population error |
 
 ### Limitations (v1)
 
