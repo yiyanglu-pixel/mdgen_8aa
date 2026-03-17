@@ -140,8 +140,9 @@ def main(name):
     if not args.no_decorr:
         out['md_decorrelation'] = {}
         for i, feat_name in enumerate(feat_names):
-            autocorr = (acovf(np.sin(ref[:, i]), demean=False, adjusted=True, nlag=100000) +
-                        acovf(np.cos(ref[:, i]), demean=False, adjusted=True, nlag=100000))
+            _nlag_ref = min(100000, len(ref) - 2)
+            autocorr = (acovf(np.sin(ref[:, i]), demean=False, adjusted=True, nlag=_nlag_ref) +
+                        acovf(np.cos(ref[:, i]), demean=False, adjusted=True, nlag=_nlag_ref))
             baseline = np.sin(ref[:, i]).mean()**2 + np.cos(ref[:, i]).mean()**2
             lags = 1 + np.arange(len(autocorr))
             normed = (autocorr - baseline) / (1 - baseline)
@@ -159,8 +160,9 @@ def main(name):
 
         out['our_decorrelation'] = {}
         for i, feat_name in enumerate(feat_names):
-            autocorr = (acovf(np.sin(traj[:, i]), demean=False, adjusted=True, nlag=1000) +
-                        acovf(np.cos(traj[:, i]), demean=False, adjusted=True, nlag=1000))
+            _nlag_traj = min(1000, len(traj) - 2)
+            autocorr = (acovf(np.sin(traj[:, i]), demean=False, adjusted=True, nlag=_nlag_traj) +
+                        acovf(np.cos(traj[:, i]), demean=False, adjusted=True, nlag=_nlag_traj))
             baseline = np.sin(traj[:, i]).mean()**2 + np.cos(traj[:, i]).mean()**2
             lags = 1 + np.arange(len(autocorr))
             normed = (autocorr - baseline) / (1 - baseline)
@@ -214,13 +216,13 @@ def main(name):
 
     # --- TICA decorrelation ---
     if not args.no_decorr:
-        autocorr = acovf(ref_tica[:, 0], nlag=100000, adjusted=True, demean=False)
+        autocorr = acovf(ref_tica[:, 0], nlag=min(100000, len(ref_tica) - 2), adjusted=True, demean=False)
         out['md_decorrelation']['tica'] = autocorr.astype(np.float16)
         if args.plot:
             axs[0, 3].plot(autocorr)
             axs[0, 3].set_title('MD TICA autocorr')
 
-        autocorr = acovf(traj_tica[:, 0], nlag=1000, adjusted=True, demean=False)
+        autocorr = acovf(traj_tica[:, 0], nlag=min(1000, len(traj_tica) - 2), adjusted=True, demean=False)
         out['our_decorrelation']['tica'] = autocorr.astype(np.float16)
         if args.plot:
             axs[1, 3].plot(autocorr)
