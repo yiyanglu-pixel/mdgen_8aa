@@ -43,6 +43,9 @@ class MDGenDataset(torch.utils.data.Dataset):
         end = frame_start + self.args.num_frames
         # arr = np.copy(arr[frame_start:end]) * 10 # convert to angstroms
         arr = np.copy(arr[frame_start:end]).astype(np.float32) # / 10.0 # convert to nm
+        if np.any(np.isinf(arr)) or np.any(np.isnan(arr)):
+            print(f'WARNING: {full_name} has inf/NaN in frames {frame_start}:{end}, replacing with zeros')
+            arr = np.nan_to_num(arr, nan=0.0, posinf=0.0, neginf=0.0)
         if self.args.copy_frames:
             arr[1:] = arr[0]
 
