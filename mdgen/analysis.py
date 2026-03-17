@@ -20,6 +20,48 @@ def get_featurized_traj(name, sidechains=False, cossin=True):
     traj = pyemma.coordinates.load(name+'.xtc', features=feat)
     return feat, traj
 
+def get_featurized_traj_octapeptide(md_dir, name, sidechains=False, cossin=True):
+    """Load featurized reference MD trajectory for 8AA octapeptides.
+
+    Handles the 8AA directory structure: {md_dir}/{name}/topology_noH.pdb + prod.xtc.
+    If prod.xtc has H atoms (mismatches topology_noH.pdb), falls back to
+    topology.pdb with heavy-atom selection.
+    """
+    import mdtraj
+    base = os.path.join(md_dir, name)
+    pdb_noH = os.path.join(base, 'topology_noH.pdb')
+    pdb_full = os.path.join(base, 'topology.pdb')
+    xtc_path = os.path.join(base, 'prod.xtc')
+
+    # Try topology_noH.pdb first
+    try:
+        feat = pyemma.coordinates.featurizer(pdb_noH)
+        feat.add_backbone_torsions(cossin=cossin)
+        if sidechains:
+            feat.add_sidechain_torsions(cossin=cossin)
+        traj = pyemma.coordinates.load(xtc_path, features=feat)
+        return feat, traj
+    except Exception:
+        pass
+
+    # Fallback: load with topology.pdb, strip H, save temp files
+    traj = mdtraj.load(xtc_path, top=pdb_full)
+    heavy = traj.top.select('not element H')
+    traj = traj.atom_slice(heavy)
+
+    tmp_pdb = os.path.join(base, '_ref_noH.pdb')
+    tmp_xtc = os.path.join(base, '_ref_noH.xtc')
+    traj[0].save(tmp_pdb)
+    traj.save(tmp_xtc)
+
+    feat = pyemma.coordinates.featurizer(tmp_pdb)
+    feat.add_backbone_torsions(cossin=cossin)
+    if sidechains:
+        feat.add_sidechain_torsions(cossin=cossin)
+    traj_featurized = pyemma.coordinates.load(tmp_xtc, features=feat)
+    return feat, traj_featurized
+
+
 def get_featurized_atlas_traj(name, sidechains=False, cossin=True):
     feat = pyemma.coordinates.featurizer(name+'.pdb')
     feat.add_backbone_torsions(cossin=cossin)
