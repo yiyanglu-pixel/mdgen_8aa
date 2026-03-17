@@ -6,34 +6,36 @@ Usage:
 """
 import re
 import sys
-import ast
+import math
 import matplotlib.pyplot as plt
 from collections import defaultdict
 
 def parse_log(log_path):
+    """Parse log.out, handling nan values that ast.literal_eval can't parse."""
     metrics = defaultdict(list)
+    nan_counts = defaultdict(int)
     with open(log_path) as f:
         for line in f:
-            # Match any dict-like string in the line
             match = re.search(r"\{[^{}]+\}", line)
             if not match:
                 continue
+            # Replace nan with None so eval can parse it
+            raw = match.group().replace(': nan,', ': None,').replace(': nan}', ': None}')
             try:
-                d = ast.literal_eval(match.group())
-            except (ValueError, SyntaxError):
+                d = eval(raw)
+            except Exception:
                 continue
-            if not isinstance(d, dict):
-                continue
-            # Only keep entries that have epoch (structured log lines)
-            if 'epoch' not in d:
+            if not isinstance(d, dict) or 'epoch' not in d:
                 continue
             for k, v in d.items():
                 if isinstance(v, (int, float)):
                     metrics[k].append(v)
-    return metrics
+                elif v is None:
+                    metrics[k].append(float('nan'))
+                    nan_counts[k] += 1
+    return metrics, nan_counts
 
 def plot(metrics, save=False, out_path="loss_curve.png"):
-    # Auto-detect loss keys: train_loss, iter_loss, loss, loss_continuous, etc.
     loss_keys = [k for k in metrics if 'loss' in k.lower()]
     if not loss_keys:
         print("No loss metrics found in log. Available keys:", list(metrics.keys()))
@@ -47,18 +49,28 @@ def plot(metrics, save=False, out_path="loss_curve.png"):
 
     for ax, key in zip(axes, loss_keys):
         vals = metrics[key]
-        x = list(range(len(vals)))
-        ax.plot(x, vals, linewidth=0.5, alpha=0.3, label=f'{key} (raw)')
-        # moving average
-        window = max(1, len(vals) // 50)
-        if window > 1:
-            smoothed = [sum(vals[max(0,i-window):i+1]) / len(vals[max(0,i-window):i+1]) for i in range(len(vals))]
-            ax.plot(x, smoothed, linewidth=1.5, label=f'{key} (smoothed, w={window})')
+        # Filter out NaN for plotting
+        valid = [(i, v) for i, v in enumerate(vals) if not math.isnan(v)]
+        if valid:
+            x, y = zip(*valid)
+            ax.plot(x, y, linewidth=0.5, alpha=0.3, label=f'{key} (raw, {len(valid)} valid)')
+            # moving average
+            window = max(1, len(y) // 50)
+            if window > 1:
+                smoothed = [sum(y[max(0,i-window):i+1]) / len(y[max(0,i-window):i+1]) for i in range(len(y))]
+                ax.plot(x, smoothed, linewidth=1.5, label=f'{key} (smoothed, w={window})')
+        else:
+            ax.text(0.5, 0.5, f'{key}: ALL NaN', transform=ax.transAxes,
+                    ha='center', va='center', fontsize=16, color='red')
         ax.set_ylabel(key)
         ax.legend()
         ax.grid(True, alpha=0.3)
 
-    axes[-1].set_xlabel('Log Entry Index')
+    epochs = metrics.get('epoch', [])
+    if epochs:
+        axes[-1].set_xlabel(f'Log Entry Index (epoch 0 ~ {int(max(epochs))})')
+    else:
+        axes[-1].set_xlabel('Log Entry Index')
     axes[0].set_title('Training Loss Curves')
     plt.tight_layout()
 
@@ -74,11 +86,23 @@ if __name__ == "__main__":
         sys.exit(1)
     log_path = sys.argv[1]
     save = "--save" in sys.argv
-    metrics = parse_log(log_path)
-    print(f"Parsed {len(metrics.get('epoch', []))} log entries")
+    metrics, nan_counts = parse_log(log_path)
+
+    epochs = metrics.get('epoch', [])
+    print(f"Parsed {len(epochs)} log entries (epoch 0 ~ {int(max(epochs)) if epochs else '?'})")
     print(f"Available metrics: {list(metrics.keys())}")
+    print()
+
     for key in sorted(metrics.keys()):
         if 'loss' in key.lower():
             vals = metrics[key]
-            print(f"  {key}: {len(vals)} entries, range [{min(vals):.4f}, {max(vals):.4f}], last 5: {[round(v,4) for v in vals[-5:]]}")
+            valid = [v for v in vals if not math.isnan(v)]
+            nan_ct = nan_counts.get(key, 0)
+            total = len(vals)
+            print(f"  {key}: {total} entries, {len(valid)} valid, {nan_ct} NaN ({nan_ct*100//max(total,1)}%)")
+            if valid:
+                print(f"    range [{min(valid):.4f}, {max(valid):.4f}]")
+                print(f"    first 5 valid: {[round(v,4) for v in valid[:5]]}")
+                print(f"    last 5 valid:  {[round(v,4) for v in valid[-5:]]}")
+
     plot(metrics, save=save, out_path=log_path.replace('.out', '_loss.png').replace('.log', '_loss.png'))
