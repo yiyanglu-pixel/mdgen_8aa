@@ -11,6 +11,11 @@
 
 set -e
 
+# Prevent system mpi4py (Python 3.12) from conflicting with conda env (Python 3.9)
+export MPI4PY_RC_INITIALIZE=0
+# Remove /apps paths that inject incompatible system packages
+export PYTHONPATH=$(echo "$PYTHONPATH" | tr ':' '\n' | grep -v '/apps/' | tr '\n' ':' | sed 's/:$//')
+
 # ========================= USER CONFIG =========================
 DATA_DIR="/localhome3/lyy/mdgen_8aa/data/8AA_data"
 SUFFIX="_i1000"
