@@ -14,6 +14,10 @@ parser.add_argument('--train_frac', type=float, default=0.8)
 parser.add_argument('--val_frac', type=float, default=0.1)
 parser.add_argument('--test_frac', type=float, default=0.1)
 parser.add_argument('--seed', type=int, default=42)
+parser.add_argument('--npy_dir', type=str, default=None,
+                    help='Path to preprocessed .npy files. If set, only include peptides with existing .npy files.')
+parser.add_argument('--suffix', type=str, default='_i1000',
+                    help='Suffix for .npy files (default: _i1000)')
 args = parser.parse_args()
 
 os.makedirs(args.outdir, exist_ok=True)
@@ -37,6 +41,15 @@ for name in dirs:
 
 df = pd.DataFrame(entries)
 print(f'Found {len(df)} valid octapeptides')
+
+# Filter to only peptides with existing .npy files
+if args.npy_dir:
+    before = len(df)
+    df = df[df['name'].apply(
+        lambda n: os.path.exists(os.path.join(args.npy_dir, f'{n}{args.suffix}.npy'))
+    )]
+    df = df.reset_index(drop=True)
+    print(f'Filtered to {len(df)} peptides with .npy files (removed {before - len(df)})')
 
 # Save full split
 df.to_csv(os.path.join(args.outdir, '8AA.csv'), index=False)

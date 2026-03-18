@@ -34,17 +34,25 @@ train_loader = torch.utils.data.DataLoader(
     batch_size=args.batch_size,
     num_workers=args.num_workers,
     shuffle=True,
+    pin_memory=True,
+    persistent_workers=args.num_workers > 0,
+    prefetch_factor=2 if args.num_workers > 0 else None,
 )
 
 val_loader = torch.utils.data.DataLoader(
     valset,
     batch_size=args.batch_size,
     num_workers=args.num_workers,
+    pin_memory=True,
+    persistent_workers=args.num_workers > 0,
+    prefetch_factor=2 if args.num_workers > 0 else None,
 )
 model = NewMDGenWrapper(args)
     
 trainer = pl.Trainer(
     accelerator="gpu" if torch.cuda.is_available() else 'auto',
+    devices="auto",
+    strategy="ddp" if torch.cuda.device_count() > 1 else "auto",
     max_epochs=args.epochs,
     limit_train_batches=args.train_batches or 1.0,
     limit_val_batches=0.0 if args.no_validate else (args.val_batches or 1.0),
