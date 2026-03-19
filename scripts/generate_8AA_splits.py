@@ -27,12 +27,28 @@ dirs = sorted([d for d in os.listdir(args.data_dir)
                if os.path.isdir(os.path.join(args.data_dir, d)) and d.startswith('opep_')])
 
 for name in dirs:
+    prmtop_path = os.path.join(args.data_dir, name, 'prmtop')
     pdb_path = os.path.join(args.data_dir, name, 'topology.pdb')
-    if not os.path.exists(pdb_path):
-        print(f'Warning: {pdb_path} not found, skipping')
+
+    # Prefer prmtop (matches XTC atom set exactly); fall back to topology.pdb
+    if os.path.exists(prmtop_path):
+        try:
+            top = mdtraj.load_prmtop(prmtop_path)
+            residues = [r for r in top.residues if r.name in restype_3to1]
+        except Exception as e:
+            print(f'Warning: failed to load prmtop for {name}: {e}, trying topology.pdb')
+            if not os.path.exists(pdb_path):
+                print(f'Warning: {pdb_path} not found either, skipping')
+                continue
+            traj = mdtraj.load(pdb_path)
+            residues = [r for r in traj.top.residues if r.name in restype_3to1]
+    elif os.path.exists(pdb_path):
+        traj = mdtraj.load(pdb_path)
+        residues = [r for r in traj.top.residues if r.name in restype_3to1]
+    else:
+        print(f'Warning: neither prmtop nor topology.pdb found for {name}, skipping')
         continue
-    traj = mdtraj.load(pdb_path)
-    residues = [r for r in traj.top.residues if r.name in restype_3to1]
+
     if len(residues) != 8:
         print(f'Warning: {name} has {len(residues)} standard residues (expected 8), skipping')
         continue
