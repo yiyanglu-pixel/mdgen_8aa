@@ -17,6 +17,19 @@ from multiprocessing import Pool
 import numpy as np
 from mdgen import residue_constants as rc
 
+# AMBER force-field protonation-state residue names → standard 3-letter codes
+AMBER_TO_STANDARD = {
+    'HIE': 'HIS', 'HID': 'HIS', 'HIP': 'HIS',
+    'CYX': 'CYS', 'CYM': 'CYS',
+    'ASH': 'ASP',
+    'GLH': 'GLU',
+    'LYN': 'LYS',
+}
+
+def _std_resname(name):
+    """Map AMBER protonation-state residue names to standard 3-letter codes."""
+    return AMBER_TO_STANDARD.get(name, name)
+
 os.makedirs(args.outdir, exist_ok=True)
 
 df = pd.read_csv(args.split, index_col='name')
@@ -55,10 +68,14 @@ def main():
 def traj_to_atom14(traj):
     arr = np.zeros((traj.n_frames, traj.n_residues, 14, 3), dtype=np.float16)
     for i, resi in enumerate(traj.top.residues):
+        std_name = _std_resname(resi.name)
+        if std_name not in rc.restype_name_to_atom14_names:
+            continue  # skip non-standard residues (e.g. ACE, NME caps)
+        atom14_names = rc.restype_name_to_atom14_names[std_name]
         for at in resi.atoms:
-            if at.name not in rc.restype_name_to_atom14_names[resi.name]:
+            if at.name not in atom14_names:
                 print(resi.name, at.name, 'not found'); continue
-            j = rc.restype_name_to_atom14_names[resi.name].index(at.name)
+            j = atom14_names.index(at.name)
             arr[:,i,j] = traj.xyz[:,at.index] * 10.0
     return arr
 
@@ -80,8 +97,11 @@ elif args.octapeptides:
         traj = mdtraj.load(xtc_path, top=top)
         traj.atom_slice([a.index for a in traj.top.atoms if a.element.symbol != 'H'], True)
 
-        if traj.n_residues != 8:
-            print(f'WARNING: {name} has {traj.n_residues} residues, skipping')
+        # Count only standard amino acid residues (exclude caps like ACE, NME)
+        n_std = sum(1 for r in traj.top.residues
+                    if _std_resname(r.name) in rc.restype_name_to_atom14_names)
+        if n_std != 8:
+            print(f'WARNING: {name} has {n_std} standard residues, skipping')
             return
 
         traj.superpose(traj)

@@ -6,6 +6,19 @@ import mdtraj
 
 from mdgen.residue_constants import restype_3to1
 
+# AMBER force-field protonation-state residue names → standard 3-letter codes
+AMBER_TO_STANDARD = {
+    'HIE': 'HIS', 'HID': 'HIS', 'HIP': 'HIS',  # histidine variants
+    'CYX': 'CYS', 'CYM': 'CYS',                  # cysteine variants
+    'ASH': 'ASP',                                   # protonated aspartate
+    'GLH': 'GLU',                                   # protonated glutamate
+    'LYN': 'LYS',                                   # neutral lysine
+}
+
+def _normalize_resname(name):
+    """Map AMBER protonation-state residue names to standard 3-letter codes."""
+    return AMBER_TO_STANDARD.get(name, name)
+
 parser = argparse.ArgumentParser(description='Generate 8AA split CSVs from octapeptides data')
 parser.add_argument('--data_dir', type=str, required=True,
                     help='Path to octapeptides data (e.g., octapeptides_data/ONE_octapeptides)')
@@ -34,17 +47,20 @@ for name in dirs:
     if os.path.exists(prmtop_path):
         try:
             top = mdtraj.load_prmtop(prmtop_path)
-            residues = [r for r in top.residues if r.name in restype_3to1]
+            residues = [(r, _normalize_resname(r.name)) for r in top.residues]
+            residues = [(r, std) for r, std in residues if std in restype_3to1]
         except Exception as e:
             print(f'Warning: failed to load prmtop for {name}: {e}, trying topology.pdb')
             if not os.path.exists(pdb_path):
                 print(f'Warning: {pdb_path} not found either, skipping')
                 continue
             traj = mdtraj.load(pdb_path)
-            residues = [r for r in traj.top.residues if r.name in restype_3to1]
+            residues = [(r, _normalize_resname(r.name)) for r in traj.top.residues]
+            residues = [(r, std) for r, std in residues if std in restype_3to1]
     elif os.path.exists(pdb_path):
         traj = mdtraj.load(pdb_path)
-        residues = [r for r in traj.top.residues if r.name in restype_3to1]
+        residues = [(r, _normalize_resname(r.name)) for r in traj.top.residues]
+        residues = [(r, std) for r, std in residues if std in restype_3to1]
     else:
         print(f'Warning: neither prmtop nor topology.pdb found for {name}, skipping')
         continue
@@ -52,7 +68,7 @@ for name in dirs:
     if len(residues) != 8:
         print(f'Warning: {name} has {len(residues)} standard residues (expected 8), skipping')
         continue
-    seqres = ''.join(restype_3to1[r.name] for r in residues)
+    seqres = ''.join(restype_3to1[std] for _, std in residues)
     entries.append({'name': name, 'seqres': seqres})
 
 df = pd.DataFrame(entries)
