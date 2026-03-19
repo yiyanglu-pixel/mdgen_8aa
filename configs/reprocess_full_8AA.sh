@@ -6,9 +6,10 @@
 # ensuring consistent atom sets between topology and XTC trajectories.
 #
 # Usage:
-#   SIM_DIR=/path/to/ONE_octapeptides bash configs/reprocess_full_8AA.sh
+#   bash configs/reprocess_full_8AA.sh
 #
 # Optional overrides:
+#   SIM_DIR       path to ONE_octapeptides  (default: /localhome3/lyy/8pep_gb_sim/octapeptides_data/ONE_octapeptides)
 #   OUTDIR        output dir for .npy files  (default: data/8AA_data)
 #   SUFFIX        .npy filename suffix       (default: _i1000)
 #   STRIDE        frame stride              (default: 1000)
@@ -16,7 +17,7 @@
 
 set -e
 
-SIM_DIR=${SIM_DIR:?'ERROR: SIM_DIR must be set (path to ONE_octapeptides directory)'}
+SIM_DIR=${SIM_DIR:-/localhome3/lyy/8pep_gb_sim/octapeptides_data/ONE_octapeptides}
 OUTDIR=${OUTDIR:-data/8AA_data}
 SUFFIX=${SUFFIX:-_i1000}
 STRIDE=${STRIDE:-1000}
