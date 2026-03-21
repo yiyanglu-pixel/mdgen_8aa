@@ -1,12 +1,8 @@
 #!/bin/bash
 # Train 8AA forward simulation model
 # Assumes splits and preprocessed data are already generated
-#
-# SUFFIX must match preprocessing:
-#   10ns high-freq data (stride=1000): --suffix _i1000
-#   100ns production data (stride=100): --suffix _i100
 
-SUFFIX=${SUFFIX:-_i1000}  # default to 10ns test data
+SUFFIX=${SUFFIX:-_i100}
 
 MODEL_DIR=workdir/8AA_sim python train.py \
     --sim_condition \

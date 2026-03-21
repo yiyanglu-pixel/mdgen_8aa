@@ -2,7 +2,7 @@
 """Diagnose NaN/inf in 8AA .npy data files.
 
 Usage:
-    python scripts/diagnose_npy_data.py --data_dir /localhome3/lyy/mdgen_8aa/data/8AA_data --suffix _i1000
+    python scripts/diagnose_npy_data.py --data_dir /localhome3/lyy/mdgen_8aa/data/8AA_data --suffix _i100
 """
 import argparse
 import glob
@@ -11,7 +11,7 @@ import numpy as np
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--data_dir', required=True)
-parser.add_argument('--suffix', default='_i1000')
+parser.add_argument('--suffix', default='_i100')
 parser.add_argument('--verbose', action='store_true')
 args = parser.parse_args()
 

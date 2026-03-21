@@ -11,7 +11,7 @@ Usage:
     python scripts/diagnose_data.py \
         --data_dir /localhome3/lyy/mdgen_8aa/data/8AA_data \
         --splits_dir splits \
-        --suffix _i1000
+        --suffix _i100
 """
 import argparse
 import os
@@ -21,7 +21,7 @@ import numpy as np
 parser = argparse.ArgumentParser()
 parser.add_argument('--data_dir', type=str, required=True)
 parser.add_argument('--splits_dir', type=str, default='splits')
-parser.add_argument('--suffix', type=str, default='_i1000')
+parser.add_argument('--suffix', type=str, default='_i100')
 parser.add_argument('--verbose', action='store_true')
 args = parser.parse_args()
 

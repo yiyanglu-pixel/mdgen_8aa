@@ -18,7 +18,7 @@ export PYTHONPATH=$(echo "$PYTHONPATH" | tr ':' '\n' | grep -v '/apps/' | tr '\n
 
 # ========================= USER CONFIG =========================
 DATA_DIR="/localhome3/lyy/mdgen_8aa/data/8AA_data"
-SUFFIX="_i1000"
+SUFFIX="_i100"
 RUN_NAME="8AA_sim_test50"
 NUM_FRAMES=100
 EPOCHS=50

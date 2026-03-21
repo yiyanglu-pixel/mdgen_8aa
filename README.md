@@ -125,18 +125,36 @@ Tables and figures in the paper are extracted from these pickle files.
 
 This repository has been extended to support Octapeptides (8-residue peptides) in addition to the original tetrapeptide (4AA) and ATLAS workflows.
 
+### Data Preparation
+
+The preprocessing pipeline expects **hydrogen-free** trajectories. Before running `prep_sims.py`, generate `prod_noH.xtc` and `topology_noH.pdb` from your raw simulation data:
+
+```python
+import mdtraj, os
+
+sim_dir = '/path/to/octapeptides_data/ONE_octapeptides'
+for name in sorted(os.listdir(sim_dir)):
+    d = os.path.join(sim_dir, name)
+    if not os.path.isdir(d) or not name.startswith('opep_'):
+        continue
+    traj = mdtraj.load(os.path.join(d, 'prod.xtc'), top=os.path.join(d, 'prmtop'))
+    heavy = traj.top.select('not element H')
+    traj_noH = traj.atom_slice(heavy)
+    traj_noH.save(os.path.join(d, 'prod_noH.xtc'))
+    traj_noH[0].save(os.path.join(d, 'topology_noH.pdb'))
+    print(f'{name}: {traj.n_atoms} -> {traj_noH.n_atoms} atoms, {traj_noH.n_frames} frames')
+```
+
 ### Data Directory Convention
 
-Octapeptides data should be organized as (example path on cloud server: `/localhome3/lyy/8pep_gb_sim/octapeptides_data/ONE_octapeptides/`):
+After preparation, each peptide directory should contain:
 ```
 octapeptides_data/ONE_octapeptides/
-  opep_0000/topology.pdb, topology_noH.pdb, prod.xtc
-  opep_0001/topology.pdb, topology_noH.pdb, prod.xtc
+  opep_0000/topology_noH.pdb, prod_noH.xtc
+  opep_0001/topology_noH.pdb, prod_noH.xtc
   ...
-  opep_1099/topology.pdb, topology_noH.pdb, prod.xtc
+  opep_1099/topology_noH.pdb, prod_noH.xtc
 ```
-
-> **Note**: The XTC trajectory **contains H atoms** matching `topology.pdb`. During preprocessing, the trajectory is loaded with `topology.pdb` and H atoms are stripped in-memory. `topology_noH.pdb` is not used by the pipeline.
 
 ### Workflow
 
@@ -151,35 +169,33 @@ python -m scripts.generate_8AA_splits --data_dir $SIM_DIR --outdir splits
 ```bash
 SIM_DIR=/localhome3/lyy/8pep_gb_sim/octapeptides_data/ONE_octapeptides
 
-# 10ns high-frequency data (1M frames, frame interval 10fs, stride=1000 → 1,000 frames at 10ps)
-python -m scripts.prep_sims --split splits/8AA.csv --sim_dir $SIM_DIR --outdir data/8AA_data --num_workers 8 --suffix _i1000 --stride 1000 --octapeptides
-
-# 100ns production data (1M frames, frame interval 100fs, stride=100 → 10,000 frames at 10ps)
+# 10ns data (1M frames, frame interval 10fs, stride=100 → 10,000 frames at Δt=1ps)
 python -m scripts.prep_sims --split splits/8AA.csv --sim_dir $SIM_DIR --outdir data/8AA_data --num_workers 8 --suffix _i100 --stride 100 --octapeptides
+
+# 100ns production data (1M frames, frame interval 100fs, stride=100 → 10,000 frames at Δt=10ps)
+# python -m scripts.prep_sims --split splits/8AA.csv --sim_dir $SIM_DIR --outdir data/8AA_data --num_workers 8 --suffix _i100 --stride 100 --octapeptides
 ```
 
-**3. Train** (forward simulation example, use suffix matching your preprocessing):
-```
-# With 10ns data (suffix _i1000)
-MODEL_DIR=workdir/8AA_sim python train.py --sim_condition --train_split splits/8AA_train.csv --val_split splits/8AA_val.csv --data_dir data/8AA_data --crop 8 --abs_pos_emb --num_frames 100 --prepend_ipa --suffix _i1000 --epochs 1000 --wandb --run_name [NAME]
+> **Note**: 10ns data uses Δt=1ps per frame; 100ns data uses Δt=10ps (matching 4AA). Models trained on 10ns data should be retrained when switching to 100ns.
 
-# With 100ns data (suffix _i100)
+**3. Train** (forward simulation example):
+```bash
 MODEL_DIR=workdir/8AA_sim python train.py --sim_condition --train_split splits/8AA_train.csv --val_split splits/8AA_val.csv --data_dir data/8AA_data --crop 8 --abs_pos_emb --num_frames 100 --prepend_ipa --suffix _i100 --epochs 1000 --wandb --run_name [NAME]
 ```
 
 **4. Inference** (forward simulation, match suffix to training data):
 ```bash
 # Test run (1,000 frames: 100 × 10 rollouts)
-python sim_inference.py --sim_ckpt workdir/8AA_sim/best.ckpt --data_dir data/8AA_data --split splits/8AA_test.csv --num_frames 100 --num_rollouts 10 --suffix _i1000 --xtc --out_dir results/8AA_test_1k
+python sim_inference.py --sim_ckpt workdir/8AA_sim/best.ckpt --data_dir data/8AA_data --split splits/8AA_test.csv --num_frames 100 --num_rollouts 10 --suffix _i100 --xtc --out_dir results/8AA_test_1k
 
-# Full run (10,000 frames: 1,000 × 10 rollouts, matching 4AA paper config)
-python sim_inference.py --sim_ckpt workdir/8AA_sim/best.ckpt --data_dir data/8AA_data --split splits/8AA_test.csv --num_frames 1000 --num_rollouts 10 --suffix _i1000 --xtc --out_dir results/8AA_full_10k
+# Full run (10,000 frames: 1,000 × 10 rollouts)
+python sim_inference.py --sim_ckpt workdir/8AA_sim/best.ckpt --data_dir data/8AA_data --split splits/8AA_test.csv --num_frames 1000 --num_rollouts 10 --suffix _i100 --xtc --out_dir results/8AA_full_10k
 ```
 
 | Config | `--num_frames` | `--num_rollouts` | Total frames | Notes |
 |--------|---------------|-----------------|-------------|-------|
 | Test   | 100           | 10              | 1,000       | Quick validation |
-| Full   | 1,000         | 10              | 10,000      | Matches 4AA paper |
+| Full   | 1,000         | 10              | 10,000      | Full evaluation |
 
 **5. Analysis**:
 ```bash

@@ -21,14 +21,14 @@ export MPI4PY_RC_INITIALIZE=0
 export PYTHONPATH=$(echo "$PYTHONPATH" | tr ':' '\n' | grep -v '/apps/' | tr '\n' ':' | sed 's/:$//')
 
 # ========================= USER CONFIG =========================
-# Path to preprocessed .npy files (e.g., opep_0000_i1000.npy)
+# Path to preprocessed .npy files (e.g., opep_0000_i100.npy)
 DATA_DIR="/localhome3/lyy/mdgen_8aa/data/8AA_data"
 
 # Path to raw octapeptides data (for generating splits)
 RAW_DATA_DIR="/localhome3/lyy/8pep_gb_sim/octapeptides_data/ONE_octapeptides"
 
 # .npy file suffix (must match what prep_sims.py used)
-SUFFIX="_i1000"
+SUFFIX="_i100"
 
 # Training run name
 RUN_NAME="8AA_sim_912"
@@ -75,7 +75,7 @@ if [ "$NPY_COUNT" -eq 0 ]; then
     echo "    --outdir ${DATA_DIR} \\"
     echo "    --num_workers 8 \\"
     echo "    --suffix ${SUFFIX} \\"
-    echo "    --stride 1000 \\"
+    echo "    --stride 100 \\"
     echo "    --octapeptides"
     exit 1
 fi
