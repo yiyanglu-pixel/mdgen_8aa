@@ -158,7 +158,12 @@ octapeptides_data/
 
 ### Workflow
 
-**1. Generate split CSVs** (after data is available):
+**0. Verify raw data** (check all 1100 peptides are complete):
+```bash
+python -m scripts.check_raw_data --data_dir /localhome3/lyy/octapeptides_data
+```
+
+**1. Generate split CSVs** (80/10/10 train/val/test → 880/110/110):
 ```bash
 SIM_DIR=/localhome3/lyy/octapeptides_data
 
@@ -174,6 +179,11 @@ python -m scripts.prep_sims --split splits/8AA.csv --sim_dir $SIM_DIR --outdir d
 
 # 100ns production data (1M frames, frame interval 100fs, stride=100 → 10,000 frames at Δt=10ps)
 # python -m scripts.prep_sims --split splits/8AA.csv --sim_dir $SIM_DIR --outdir data/8AA_data --num_workers 8 --suffix _i100 --stride 100 --octapeptides
+```
+
+**2b. Verify preprocessed data**:
+```bash
+python -m scripts.verify_data --data_dir data/8AA_data --suffix _i100
 ```
 
 > **Note**: 10ns data uses Δt=1ps per frame; 100ns data uses Δt=10ps (matching 4AA). Models trained on 10ns data should be retrained when switching to 100ns.
@@ -263,10 +273,16 @@ print(f'Torsion JSD: {np.nanmean(all_torsion_jsd):.4f} ± {np.nanstd(all_torsion
 | TICA-0,1 JSD | Slow dynamics (free energy surface) match |
 | MSM prob MAE | Metastable state population error |
 
-### Limitations (v1)
+### Data & Diagnostics
+
+- `scripts/check_raw_data.py` — Verify all 1100 raw peptide directories are complete
+- `scripts/verify_data.py` — Validate preprocessed .npy file shapes, dtypes, and values
+- `scripts/diagnose_data.py` — Comprehensive diagnostics (NaN, inf, degenerate geometry)
+- `scripts/filter_bad_npy.py` — Remove corrupted entries from split CSVs
+
+### Limitations
 
 - Design/inpainting: indices are auto-derived from `--crop` (terminals=conditioned, interior=designed) but have **not been validated** on 8AA data.
-- Analysis scripts may need adjustments for 8AA-specific metrics.
 - Multi-chain, membrane proteins, and ligand conditioning are not supported.
 
 ## License

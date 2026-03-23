@@ -16,7 +16,7 @@ export PYTHONPATH=$(echo "$PYTHONPATH" | tr ':' '\n' | grep -v '/apps/' | tr '\n
 DATA_DIR="/localhome3/lyy/mdgen_8aa/data/8AA_data"
 RAW_DATA_DIR="/localhome3/lyy/octapeptides_data"
 SUFFIX="_i100"
-RUN_NAME="8AA_sim_912_multi"
+RUN_NAME="8AA_sim_1100_multi"
 NUM_FRAMES=100
 
 # --- Multi-GPU config ---

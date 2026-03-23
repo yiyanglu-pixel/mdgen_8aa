@@ -31,7 +31,7 @@ RAW_DATA_DIR="/localhome3/lyy/octapeptides_data"
 SUFFIX="_i100"
 
 # Training run name
-RUN_NAME="8AA_sim_912"
+RUN_NAME="8AA_sim_1100"
 
 # Number of trajectory frames per sample
 NUM_FRAMES=100
