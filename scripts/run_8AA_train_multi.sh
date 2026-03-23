@@ -14,7 +14,7 @@ export PYTHONPATH=$(echo "$PYTHONPATH" | tr ':' '\n' | grep -v '/apps/' | tr '\n
 
 # ========================= USER CONFIG =========================
 DATA_DIR="/localhome3/lyy/mdgen_8aa/data/8AA_data"
-RAW_DATA_DIR="/localhome3/lyy/8pep_gb_sim/octapeptides_data/ONE_octapeptides"
+RAW_DATA_DIR="/localhome3/lyy/octapeptides_data"
 SUFFIX="_i100"
 RUN_NAME="8AA_sim_912_multi"
 NUM_FRAMES=100

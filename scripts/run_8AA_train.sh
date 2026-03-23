@@ -25,7 +25,7 @@ export PYTHONPATH=$(echo "$PYTHONPATH" | tr ':' '\n' | grep -v '/apps/' | tr '\n
 DATA_DIR="/localhome3/lyy/mdgen_8aa/data/8AA_data"
 
 # Path to raw octapeptides data (for generating splits)
-RAW_DATA_DIR="/localhome3/lyy/8pep_gb_sim/octapeptides_data/ONE_octapeptides"
+RAW_DATA_DIR="/localhome3/lyy/octapeptides_data"
 
 # .npy file suffix (must match what prep_sims.py used)
 SUFFIX="_i100"

@@ -132,7 +132,7 @@ The preprocessing pipeline expects **hydrogen-free** trajectories. Before runnin
 ```python
 import mdtraj, os
 
-sim_dir = '/path/to/octapeptides_data/ONE_octapeptides'
+sim_dir = '/localhome3/lyy/octapeptides_data'
 for name in sorted(os.listdir(sim_dir)):
     d = os.path.join(sim_dir, name)
     if not os.path.isdir(d) or not name.startswith('opep_'):
@@ -149,7 +149,7 @@ for name in sorted(os.listdir(sim_dir)):
 
 After preparation, each peptide directory should contain:
 ```
-octapeptides_data/ONE_octapeptides/
+octapeptides_data/
   opep_0000/opep_0000_noH.pdb, opep_0000_noH.xtc
   opep_0001/opep_0001_noH.pdb, opep_0001_noH.xtc
   ...
@@ -160,14 +160,14 @@ octapeptides_data/ONE_octapeptides/
 
 **1. Generate split CSVs** (after data is available):
 ```bash
-SIM_DIR=/localhome3/lyy/8pep_gb_sim/octapeptides_data/ONE_octapeptides
+SIM_DIR=/localhome3/lyy/octapeptides_data
 
 python -m scripts.generate_8AA_splits --data_dir $SIM_DIR --outdir splits
 ```
 
 **2. Preprocess** — choose stride based on your data version:
 ```bash
-SIM_DIR=/localhome3/lyy/8pep_gb_sim/octapeptides_data/ONE_octapeptides
+SIM_DIR=/localhome3/lyy/octapeptides_data
 
 # 10ns data (1M frames, frame interval 10fs, stride=100 → 10,000 frames at Δt=1ps)
 python -m scripts.prep_sims --split splits/8AA.csv --sim_dir $SIM_DIR --outdir data/8AA_data --num_workers 8 --suffix _i100 --stride 100 --octapeptides
@@ -201,7 +201,7 @@ python sim_inference.py --sim_ckpt workdir/8AA_sim/best.ckpt --data_dir data/8AA
 ```bash
 python scripts/analyze_8AA_sim.py \
     --pdbdir results/8AA_full_10k \
-    --mddir /localhome3/lyy/8pep_gb_sim/octapeptides_data/ONE_octapeptides \
+    --mddir /localhome3/lyy/octapeptides_data \
     --split splits/8AA_test.csv \
     --save --plot \
     --num_workers 16

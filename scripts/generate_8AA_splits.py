@@ -8,7 +8,7 @@ from mdgen.residue_constants import restype_3to1
 
 parser = argparse.ArgumentParser(description='Generate 8AA split CSVs from octapeptides data')
 parser.add_argument('--data_dir', type=str, required=True,
-                    help='Path to octapeptides data (e.g., octapeptides_data/ONE_octapeptides)')
+                    help='Path to octapeptides data (e.g., /localhome3/lyy/octapeptides_data)')
 parser.add_argument('--outdir', type=str, default='splits')
 parser.add_argument('--train_frac', type=float, default=0.8)
 parser.add_argument('--val_frac', type=float, default=0.1)
