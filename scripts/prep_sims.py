@@ -72,8 +72,8 @@ if args.atlas:
             np.save(f'{args.outdir}/{name}_R{i}{args.suffix}.npy', arr[::args.stride])
 elif args.octapeptides:
     def do_job(name):
-        traj = mdtraj.load(f'{args.sim_dir}/{name}/prod_noH.xtc',
-                           top=f'{args.sim_dir}/{name}/topology_noH.pdb')
+        traj = mdtraj.load(f'{args.sim_dir}/{name}/{name}_noH.xtc',
+                           top=f'{args.sim_dir}/{name}/{name}_noH.pdb')
 
         if traj.n_residues != 8:
             print(f'WARNING: {name} has {traj.n_residues} residues, skipping')

@@ -127,7 +127,7 @@ This repository has been extended to support Octapeptides (8-residue peptides) i
 
 ### Data Preparation
 
-The preprocessing pipeline expects **hydrogen-free** trajectories. Before running `prep_sims.py`, generate `prod_noH.xtc` and `topology_noH.pdb` from your raw simulation data:
+The preprocessing pipeline expects **hydrogen-free** trajectories. Before running `prep_sims.py`, generate `{name}_noH.xtc` and `{name}_noH.pdb` from your raw simulation data:
 
 ```python
 import mdtraj, os
@@ -140,8 +140,8 @@ for name in sorted(os.listdir(sim_dir)):
     traj = mdtraj.load(os.path.join(d, 'prod.xtc'), top=os.path.join(d, 'prmtop'))
     heavy = traj.top.select('not element H')
     traj_noH = traj.atom_slice(heavy)
-    traj_noH.save(os.path.join(d, 'prod_noH.xtc'))
-    traj_noH[0].save(os.path.join(d, 'topology_noH.pdb'))
+    traj_noH.save(os.path.join(d, f'{name}_noH.xtc'))
+    traj_noH[0].save(os.path.join(d, f'{name}_noH.pdb'))
     print(f'{name}: {traj.n_atoms} -> {traj_noH.n_atoms} atoms, {traj_noH.n_frames} frames')
 ```
 
@@ -150,10 +150,10 @@ for name in sorted(os.listdir(sim_dir)):
 After preparation, each peptide directory should contain:
 ```
 octapeptides_data/ONE_octapeptides/
-  opep_0000/topology_noH.pdb, prod_noH.xtc
-  opep_0001/topology_noH.pdb, prod_noH.xtc
+  opep_0000/opep_0000_noH.pdb, opep_0000_noH.xtc
+  opep_0001/opep_0001_noH.pdb, opep_0001_noH.xtc
   ...
-  opep_1099/topology_noH.pdb, prod_noH.xtc
+  opep_1099/opep_1099_noH.pdb, opep_1099_noH.xtc
 ```
 
 ### Workflow
