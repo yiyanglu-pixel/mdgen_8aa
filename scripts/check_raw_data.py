@@ -81,17 +81,26 @@ if args.spot_check > 0:
         valid_dirs = [n for n in all_dirs if n not in missing_files]
         check_names = rng.choice(valid_dirs, size=min(args.spot_check, len(valid_dirs)), replace=False)
 
+        CAPPING_RESIDUES = {'ACE', 'NME', 'NHE'}
+        from mdgen.residue_constants import restype_3to1
+
         print(f'\nSpot-checking {len(check_names)} peptides with mdtraj...')
         for name in sorted(check_names):
             d = os.path.join(args.data_dir, name)
             pdb = os.path.join(d, f'{name}_noH.pdb')
             xtc = os.path.join(d, f'{name}_noH.xtc')
             traj = mdtraj.load(xtc, top=pdb)
-            n_res = traj.n_residues
+            n_res_total = traj.n_residues
             n_frames = traj.n_frames
             n_atoms = traj.n_atoms
-            status = 'OK' if n_res == 8 else f'WARN: {n_res} residues!'
-            print(f'  {name}: {n_frames} frames, {n_atoms} atoms, {n_res} residues - {status}')
+            # Count standard AA residues (exclude ACE/NME capping groups)
+            std_residues = [r for r in traj.top.residues if r.name in restype_3to1]
+            cap_residues = [r for r in traj.top.residues if r.name in CAPPING_RESIDUES]
+            n_std = len(std_residues)
+            cap_names = ','.join(r.name for r in cap_residues)
+            status = 'OK' if n_std == 8 else f'WARN: {n_std} standard residues!'
+            print(f'  {name}: {n_frames} frames, {n_atoms} atoms, '
+                  f'{n_res_total} residues ({n_std} AA + caps [{cap_names}]) - {status}')
     except ImportError:
         print('\nSkipping spot-check: mdtraj not available')
 

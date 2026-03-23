@@ -127,6 +127,8 @@ This repository has been extended to support Octapeptides (8-residue peptides) i
 
 ### Data Preparation
 
+Each octapeptide is capped with **ACE** (N-terminal) and **NME** (C-terminal) groups to neutralize terminal charges during MD simulation. This results in 10 residues per trajectory (ACE + 8 standard AA + NME). The preprocessing pipeline automatically strips these capping groups and extracts only the 8 standard amino acid residues for model training.
+
 The preprocessing pipeline expects **hydrogen-free** trajectories. Before running `prep_sims.py`, generate `{name}_noH.xtc` and `{name}_noH.pdb` from your raw simulation data:
 
 ```python
