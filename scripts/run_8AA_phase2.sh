@@ -6,8 +6,7 @@
 # PyTorch Lightning automatically resumes optimizer state, LR scheduler, etc.
 #
 # Usage:
-#   bash scripts/run_8AA_phase2.sh          # single GPU
-#   bash scripts/run_8AA_phase2.sh --multi  # multi-GPU (GPUs 1-7)
+#   bash scripts/run_8AA_phase2.sh
 #
 # Custom checkpoint:
 #   CKPT=workdir/8AA_sim_phase1/epoch=1999.ckpt bash scripts/run_8AA_phase2.sh
@@ -17,7 +16,6 @@ set -e
 
 export MPI4PY_RC_INITIALIZE=0
 export PYTHONPATH=$(echo "$PYTHONPATH" | tr ':' '\n' | grep -v '/apps/' | tr '\n' ':' | sed 's/:$//')
-# Use conda's libstdc++ to avoid GLIBCXX version mismatch with system /lib64
 export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH}"
 
 # ========================= USER CONFIG =========================
@@ -31,23 +29,12 @@ CKPT_FREQ=200
 # Phase 1 checkpoint to resume from
 PHASE1_DIR="workdir/8AA_sim_phase1"
 
-# Single-GPU defaults
-BATCH_SIZE=8
+# Multi-GPU: GPUs 1-7 (7 cards), leave GPU 0 free
+export CUDA_VISIBLE_DEVICES=1,2,3,4,5,6,7
+NUM_GPUS=7
+BATCH_SIZE=1
 LR=1e-4
-PRECISION="32-true"
-export CUDA_VISIBLE_DEVICES=0
-
-# Multi-GPU override
-if [[ "$1" == "--multi" ]]; then
-    export CUDA_VISIBLE_DEVICES=1,2,3,4,5,6,7
-    NUM_GPUS=7
-    BATCH_SIZE=16
-    LR=3.7e-4
-    PRECISION="bf16-mixed"
-    RUN_NAME="8AA_sim_phase2_multi"
-    PHASE1_DIR="workdir/8AA_sim_phase1_multi"
-    echo "Multi-GPU mode: ${NUM_GPUS} GPUs, effective batch=$((BATCH_SIZE * NUM_GPUS))"
-fi
+PRECISION="bf16-mixed"
 
 USE_WANDB=""  # set to "--wandb" to enable
 
@@ -68,6 +55,7 @@ cd "$SCRIPT_DIR"
 
 echo "============================================"
 echo "  Phase 2: 8AA Training (${EPOCHS} epochs)"
+echo "  ${NUM_GPUS} GPUs, bs=${BATCH_SIZE}, ${PRECISION}"
 echo "  Resuming from Phase 1 checkpoint"
 echo "============================================"
 
@@ -84,13 +72,14 @@ VAL_COUNT=$(tail -n +2 splits/8AA_val.csv | wc -l)
 echo "  Splits:      train=${TRAIN_COUNT}, val=${VAL_COUNT}"
 
 echo ""
-echo "  Run name:    ${RUN_NAME}"
-echo "  Epochs:      ${EPOCHS}"
-echo "  Batch size:  ${BATCH_SIZE}"
-echo "  LR:          ${LR}"
-echo "  Precision:   ${PRECISION}"
-echo "  Resume from: ${CKPT}"
-echo "  Ckpt freq:   every ${CKPT_FREQ} epochs"
+echo "  GPUs:            ${CUDA_VISIBLE_DEVICES} (${NUM_GPUS} cards)"
+echo "  Per-GPU batch:   ${BATCH_SIZE}"
+echo "  Effective batch: $((BATCH_SIZE * NUM_GPUS))"
+echo "  Epochs:          ${EPOCHS}"
+echo "  LR:              ${LR}"
+echo "  Precision:       ${PRECISION}"
+echo "  Resume from:     ${CKPT}"
+echo "  Ckpt freq:       every ${CKPT_FREQ} epochs"
 echo ""
 
 export MODEL_DIR="workdir/${RUN_NAME}"

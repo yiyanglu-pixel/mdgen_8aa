@@ -5,15 +5,13 @@
 # Run this first. After loss converges, proceed to Phase 2 (10000 epochs).
 #
 # Usage:
-#   bash scripts/run_8AA_phase1.sh          # single GPU
-#   bash scripts/run_8AA_phase1.sh --multi  # multi-GPU (GPUs 1-7)
+#   bash scripts/run_8AA_phase1.sh
 # =============================================================================
 
 set -e
 
 export MPI4PY_RC_INITIALIZE=0
 export PYTHONPATH=$(echo "$PYTHONPATH" | tr ':' '\n' | grep -v '/apps/' | tr '\n' ':' | sed 's/:$//')
-# Use conda's libstdc++ to avoid GLIBCXX version mismatch with system /lib64
 export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH}"
 
 # ========================= USER CONFIG =========================
@@ -25,23 +23,12 @@ NUM_FRAMES=100
 EPOCHS=2000
 CKPT_FREQ=50
 
-# Single-GPU defaults
-BATCH_SIZE=2
+# Multi-GPU: GPUs 1-7 (7 cards), leave GPU 0 free
+export CUDA_VISIBLE_DEVICES=1,2,3,4,5,6,7
+NUM_GPUS=7
+BATCH_SIZE=1
 LR=1e-4
-PRECISION="32-true"
-export CUDA_VISIBLE_DEVICES=0
-
-# Multi-GPU override
-if [[ "$1" == "--multi" ]]; then
-    export CUDA_VISIBLE_DEVICES=1,2,3,4,5,6,7
-    NUM_GPUS=7
-    BATCH_SIZE=16
-    # sqrt-scaled LR: sqrt(16*7 / 8) * 1e-4 ≈ 3.7e-4
-    LR=3.7e-4
-    PRECISION="bf16-mixed"
-    RUN_NAME="8AA_sim_phase1_multi"
-    echo "Multi-GPU mode: ${NUM_GPUS} GPUs, effective batch=$((BATCH_SIZE * NUM_GPUS))"
-fi
+PRECISION="bf16-mixed"
 
 USE_WANDB=""  # set to "--wandb" to enable
 # ===============================================================
@@ -51,6 +38,7 @@ cd "$SCRIPT_DIR"
 
 echo "============================================"
 echo "  Phase 1: 8AA Training (${EPOCHS} epochs)"
+echo "  ${NUM_GPUS} GPUs, bs=${BATCH_SIZE}, ${PRECISION}"
 echo "============================================"
 
 # --- Step 0: Verify data ---
@@ -94,12 +82,13 @@ fi
 
 # --- Step 2: Train Phase 1 ---
 echo ""
-echo "  Run name:   ${RUN_NAME}"
-echo "  Epochs:     ${EPOCHS}"
-echo "  Batch size: ${BATCH_SIZE}"
-echo "  LR:         ${LR}"
-echo "  Precision:  ${PRECISION}"
-echo "  Ckpt freq:  every ${CKPT_FREQ} epochs"
+echo "  GPUs:            ${CUDA_VISIBLE_DEVICES} (${NUM_GPUS} cards)"
+echo "  Per-GPU batch:   ${BATCH_SIZE}"
+echo "  Effective batch: $((BATCH_SIZE * NUM_GPUS))"
+echo "  Epochs:          ${EPOCHS}"
+echo "  LR:              ${LR}"
+echo "  Precision:       ${PRECISION}"
+echo "  Ckpt freq:       every ${CKPT_FREQ} epochs"
 echo ""
 
 export MODEL_DIR="workdir/${RUN_NAME}"
