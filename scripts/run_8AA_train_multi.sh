@@ -11,6 +11,8 @@ set -e
 # Prevent system mpi4py (Python 3.12) from conflicting with conda env (Python 3.9)
 export MPI4PY_RC_INITIALIZE=0
 export PYTHONPATH=$(echo "$PYTHONPATH" | tr ':' '\n' | grep -v '/apps/' | tr '\n' ':' | sed 's/:$//')
+# Use conda's libstdc++ to avoid GLIBCXX version mismatch with system /lib64
+export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH}"
 
 # ========================= USER CONFIG =========================
 DATA_DIR="/localhome3/lyy/mdgen_8aa/data/8AA_data"

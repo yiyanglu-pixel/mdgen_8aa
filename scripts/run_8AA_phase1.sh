@@ -13,6 +13,8 @@ set -e
 
 export MPI4PY_RC_INITIALIZE=0
 export PYTHONPATH=$(echo "$PYTHONPATH" | tr ':' '\n' | grep -v '/apps/' | tr '\n' ':' | sed 's/:$//')
+# Use conda's libstdc++ to avoid GLIBCXX version mismatch with system /lib64
+export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH}"
 
 # ========================= USER CONFIG =========================
 DATA_DIR="/localhome3/lyy/mdgen_8aa/data/8AA_data"
