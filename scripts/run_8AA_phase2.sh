@@ -32,8 +32,8 @@ PHASE1_DIR="workdir/8AA_sim_phase1"
 # Multi-GPU: GPUs 1-7 (7 cards), leave GPU 0 free
 export CUDA_VISIBLE_DEVICES=1,2,3,4,5,6,7
 NUM_GPUS=7
-BATCH_SIZE=1
-LR=1e-4
+BATCH_SIZE=16
+LR=2e-4
 PRECISION="bf16-mixed"
 
 USE_WANDB=""  # set to "--wandb" to enable
