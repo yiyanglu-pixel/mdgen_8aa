@@ -1,53 +1,16 @@
-import os
 import torch
 from .rigid_utils import Rigid
 from .residue_constants import restype_order
 import numpy as np
 import pandas as pd
 from .geometry import atom37_to_torsions, atom14_to_atom37, atom14_to_frames
-       
+
 class MDGenDataset(torch.utils.data.Dataset):
     def __init__(self, args, split, repeat=1):
         super().__init__()
         self.df = pd.read_csv(split, index_col='name')
         self.args = args
         self.repeat = repeat
-        self._validate_data()
-    def _validate_data(self):
-        """Check that .npy files exist and have consistent shapes."""
-        missing = []
-        bad_shape = []
-        ref_shape = None
-        for name in self.df.index:
-            full_name = name
-            path = f'{self.args.data_dir}/{full_name}{self.args.suffix}.npy'
-            if not os.path.exists(path):
-                missing.append(name)
-                continue
-            arr = np.lib.format.open_memmap(path, 'r')
-            # Check residue/atom dimensions (skip frame dim which can vary)
-            shape_tail = arr.shape[1:]  # (L, 14, 3)
-            if ref_shape is None:
-                ref_shape = shape_tail
-            elif shape_tail != ref_shape:
-                bad_shape.append((name, arr.shape, ref_shape))
-            # Check minimum frames
-            if arr.shape[0] < self.args.num_frames:
-                bad_shape.append((name, f'{arr.shape[0]} frames < num_frames={self.args.num_frames}', None))
-        if missing:
-            print(f'WARNING: {len(missing)} peptides missing .npy files (first 5: {missing[:5]})')
-        if bad_shape:
-            print(f'ERROR: {len(bad_shape)} peptides have inconsistent shapes:')
-            for item in bad_shape[:10]:
-                print(f'  {item[0]}: got {item[1]}, expected (*,{ref_shape})')
-            raise ValueError(
-                f'Inconsistent .npy shapes detected! {len(bad_shape)} files differ. '
-                f'Expected shape (*, {ref_shape}). '
-                f'Re-run: python -m scripts.verify_data --data_dir {self.args.data_dir} --suffix {self.args.suffix}'
-            )
-        if ref_shape is not None:
-            print(f'Dataset validated: {len(self.df)} peptides, shape (*, {ref_shape})')
-
     def __len__(self):
         if self.args.overfit_peptide:
             return 1000
