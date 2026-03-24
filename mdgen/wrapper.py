@@ -392,9 +392,16 @@ class NewMDGenWrapper(Wrapper):
         self.log('model_dur', time.time() - start)
         loss = out_dict['loss']
         # Guard against NaN loss corrupting model weights via gradient
-        if torch.any(torch.isnan(loss)):
-            loss = torch.where(torch.isnan(loss), torch.zeros_like(loss), loss)
+        nan_mask = torch.isnan(loss)
+        if torch.any(nan_mask):
+            nan_frac = nan_mask.float().mean().item()
+            logger.warning(
+                f'[step {self.iter_step}] NaN loss detected ({nan_frac:.1%} of elements). '
+                f'Replacing with zero to skip gradient. Check geometry or data for degenerate samples.'
+            )
+            loss = torch.where(nan_mask, torch.zeros_like(loss), loss)
         self.log('loss', loss)
+        self.log('nan_loss_frac', nan_mask.float().mean().item())
 
         if self.args.design:
             aa_out = torch.argmax(out_dict['logits'], dim=-1)
