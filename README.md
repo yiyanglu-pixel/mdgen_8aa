@@ -190,18 +190,29 @@ python -m scripts.verify_data --data_dir data/8AA_data --suffix _i100
 
 > **Note**: 10ns data uses Δt=1ps per frame; 100ns data uses Δt=10ps (matching 4AA). Models trained on 10ns data should be retrained when switching to 100ns.
 
-**3. Train** (forward simulation example):
+**3. Train** — two-phase approach for stable convergence:
 ```bash
-MODEL_DIR=workdir/8AA_sim python train.py --sim_condition --train_split splits/8AA_train.csv --val_split splits/8AA_val.csv --data_dir data/8AA_data --crop 8 --abs_pos_emb --num_frames 100 --prepend_ipa --suffix _i100 --epochs 1000 --wandb --run_name [NAME]
+# Phase 1: 2000 epochs (initial training)
+bash scripts/run_8AA_phase1.sh          # single GPU
+bash scripts/run_8AA_phase1.sh --multi  # multi-GPU (GPUs 1-7)
+
+# Check loss convergence
+python plot_loss.py workdir/8AA_sim_phase1/log.out --save
+
+# Phase 2: 10000 epochs (resume from Phase 1 checkpoint)
+bash scripts/run_8AA_phase2.sh          # single GPU
+bash scripts/run_8AA_phase2.sh --multi  # multi-GPU (GPUs 1-7)
 ```
+
+> **Note**: Phase 2 automatically finds the last Phase 1 checkpoint. To use a specific checkpoint: `CKPT=path/to/epoch=XXX.ckpt bash scripts/run_8AA_phase2.sh`
 
 **4. Inference** (forward simulation, match suffix to training data):
 ```bash
 # Test run (1,000 frames: 100 × 10 rollouts)
-python sim_inference.py --sim_ckpt workdir/8AA_sim/best.ckpt --data_dir data/8AA_data --split splits/8AA_test.csv --num_frames 100 --num_rollouts 10 --suffix _i100 --xtc --out_dir results/8AA_test_1k
+python sim_inference.py --sim_ckpt workdir/8AA_sim_phase2/best.ckpt --data_dir data/8AA_data --split splits/8AA_test.csv --num_frames 100 --num_rollouts 10 --suffix _i100 --xtc --out_dir results/8AA_test_1k
 
 # Full run (10,000 frames: 1,000 × 10 rollouts)
-python sim_inference.py --sim_ckpt workdir/8AA_sim/best.ckpt --data_dir data/8AA_data --split splits/8AA_test.csv --num_frames 1000 --num_rollouts 10 --suffix _i100 --xtc --out_dir results/8AA_full_10k
+python sim_inference.py --sim_ckpt workdir/8AA_sim_phase2/best.ckpt --data_dir data/8AA_data --split splits/8AA_test.csv --num_frames 1000 --num_rollouts 10 --suffix _i100 --xtc --out_dir results/8AA_full_10k
 ```
 
 | Config | `--num_frames` | `--num_rollouts` | Total frames | Notes |

@@ -10,7 +10,7 @@ parser.add_argument('--no_frames', action='store_true')
 parser.add_argument('--tps', action='store_true')
 parser.add_argument('--xtc', action='store_true')
 parser.add_argument('--out_dir', type=str, default=".")
-parser.add_argument('--split', type=str, default='splits/4AA_test.csv')
+parser.add_argument('--split', type=str, default='splits/8AA_test.csv')
 args = parser.parse_args()
 
 import os, torch, mdtraj, tqdm, time
