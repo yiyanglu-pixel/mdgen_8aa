@@ -27,10 +27,10 @@ CKPT_FREQ=50
 # Multi-GPU: GPUs 1-7 (7 cards), leave GPU 0 free
 export CUDA_VISIBLE_DEVICES=1,2,3,4,5,6,7
 NUM_GPUS=7
-# bs=4 per GPU → effective batch = 4*7 = 28
-# LR sqrt-scaled from (bs=16, lr=2e-4): 2e-4 * sqrt(28/112) = 1e-4
-BATCH_SIZE=4
-LR=1e-4
+# bs=2 per GPU → effective batch = 2*7 = 14
+# LR sqrt-scaled from (bs=8, lr=1e-4): 1e-4 * sqrt(14/56) = 5e-5
+BATCH_SIZE=2
+LR=5e-5
 PRECISION="bf16-mixed"
 
 USE_WANDB=""  # set to "--wandb" to enable
