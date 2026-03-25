@@ -13,23 +13,22 @@ def get_featurizer(name, sidechains=False, cossin=True):
     return feat
 
 
-class _FeatureDescriptor:
-    """Lightweight replacement for pyemma MDFeaturizer (describe() + plot compat)."""
+class _FeatureDescriptor(list):
+    """Lightweight replacement for pyemma MDFeaturizer.
+
+    Extends list so isinstance(..., list) checks pass (required by
+    pyemma.plots.plot_feature_histograms). Also provides describe()
+    and dimension() for API compat with pyemma MDFeaturizer.
+    """
 
     def __init__(self, names):
-        self._names = list(names)
+        super().__init__(names)
 
     def describe(self):
-        return self._names
-
-    def __iter__(self):
-        return iter(self._names)
-
-    def __len__(self):
-        return len(self._names)
+        return list(self)
 
     def dimension(self):
-        return len(self._names)
+        return len(self)
 
 
 def _featurize_traj_mdtraj(traj, sidechains=False, cossin=True):
