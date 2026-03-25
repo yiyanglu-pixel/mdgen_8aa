@@ -24,17 +24,38 @@ def get_featurized_traj_octapeptide(md_dir, name, sidechains=False, cossin=True)
     """Load featurized reference MD trajectory for 8AA octapeptides.
 
     Handles the 8AA directory structure: {md_dir}/{name}/{name}_noH.pdb + {name}_noH.xtc.
+    Strips ACE/NME capping groups before featurizing.
     """
+    import mdtraj
+    import tempfile
+
     base = os.path.join(md_dir, name)
     pdb_noH = os.path.join(base, f'{name}_noH.pdb')
     xtc_noH = os.path.join(base, f'{name}_noH.xtc')
 
-    feat = pyemma.coordinates.featurizer(pdb_noH)
-    feat.add_backbone_torsions(cossin=cossin)
-    if sidechains:
-        feat.add_sidechain_torsions(cossin=cossin)
-    traj = pyemma.coordinates.load(xtc_noH, features=feat)
-    return feat, traj
+    # Load trajectory and strip ACE/NME capping groups
+    traj = mdtraj.load(xtc_noH, top=pdb_noH)
+    standard_res = [r.index for r in traj.topology.residues
+                    if r.name not in ('ACE', 'NME')]
+    if len(standard_res) < traj.topology.n_residues:
+        atom_indices = traj.topology.select(
+            ' or '.join(f'resid {r}' for r in standard_res))
+        traj = traj.atom_slice(atom_indices)
+
+    # Save stripped topology as temp PDB for pyemma featurizer
+    fd, tmp_pdb = tempfile.mkstemp(suffix='.pdb')
+    os.close(fd)
+    try:
+        traj[0].save(tmp_pdb)
+        feat = pyemma.coordinates.featurizer(tmp_pdb)
+        feat.add_backbone_torsions(cossin=cossin)
+        if sidechains:
+            feat.add_sidechain_torsions(cossin=cossin)
+        traj_feat = feat.transform(traj)
+    finally:
+        os.unlink(tmp_pdb)
+
+    return feat, traj_feat
 
 
 def get_featurized_atlas_traj(name, sidechains=False, cossin=True):
