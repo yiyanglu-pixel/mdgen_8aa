@@ -4,7 +4,7 @@ from .residue_constants import restype_order
 import numpy as np
 import pandas as pd
 from .geometry import atom37_to_torsions, atom14_to_atom37, atom14_to_frames
-       
+
 class MDGenDataset(torch.utils.data.Dataset):
     def __init__(self, args, split, repeat=1):
         super().__init__()
@@ -37,7 +37,7 @@ class MDGenDataset(torch.utils.data.Dataset):
         if self.args.frame_interval:
             arr = arr[::self.args.frame_interval]
         
-        frame_start = np.random.choice(np.arange(arr.shape[0] - self.args.num_frames))
+        frame_start = int(np.random.randint(0, arr.shape[0] - self.args.num_frames))
         if self.args.overfit_frame:
             frame_start = 0
         end = frame_start + self.args.num_frames

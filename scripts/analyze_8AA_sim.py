@@ -11,7 +11,7 @@ Computes:
 Usage:
   python scripts/analyze_8AA_sim.py \
       --pdbdir results/8AA_multi_2000ep \
-      --mddir /localhome3/lyy/8pep_gb_sim/octapeptides_data/ONE_octapeptides \
+      --mddir /localhome3/lyy/octapeptides_data \
       --split splits/8AA_test.csv \
       --save --plot
 
@@ -28,7 +28,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 import argparse
 parser = argparse.ArgumentParser(description='Analyze 8AA forward simulation results')
 parser.add_argument('--mddir', type=str,
-                    default='/localhome3/lyy/8pep_gb_sim/octapeptides_data/ONE_octapeptides',
+                    default='/localhome3/lyy/octapeptides_data',
                     help='Directory containing reference MD data (opep_XXXX/ subdirs)')
 parser.add_argument('--pdbdir', type=str, required=True,
                     help='Directory containing generated PDB/XTC files from sim_inference.py')

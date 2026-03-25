@@ -8,7 +8,7 @@ from mdgen.residue_constants import restype_3to1
 
 parser = argparse.ArgumentParser(description='Generate 8AA split CSVs from octapeptides data')
 parser.add_argument('--data_dir', type=str, required=True,
-                    help='Path to octapeptides data (e.g., octapeptides_data/ONE_octapeptides)')
+                    help='Path to octapeptides data (e.g., /localhome3/lyy/octapeptides_data)')
 parser.add_argument('--outdir', type=str, default='splits')
 parser.add_argument('--train_frac', type=float, default=0.8)
 parser.add_argument('--val_frac', type=float, default=0.1)
@@ -16,8 +16,8 @@ parser.add_argument('--test_frac', type=float, default=0.1)
 parser.add_argument('--seed', type=int, default=42)
 parser.add_argument('--npy_dir', type=str, default=None,
                     help='Path to preprocessed .npy files. If set, only include peptides with existing .npy files.')
-parser.add_argument('--suffix', type=str, default='_i1000',
-                    help='Suffix for .npy files (default: _i1000)')
+parser.add_argument('--suffix', type=str, default='_i100',
+                    help='Suffix for .npy files (default: _i100)')
 args = parser.parse_args()
 
 os.makedirs(args.outdir, exist_ok=True)

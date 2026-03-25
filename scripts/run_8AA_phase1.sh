@@ -1,45 +1,35 @@
 #!/bin/bash
 # =============================================================================
-# 8AA Octapeptide Multi-GPU Training Pipeline (7 GPUs: 1-7)
+# Phase 1: 8AA Training — 2000 epochs (initial training)
 # =============================================================================
+# Run this first. After loss converges, proceed to Phase 2 (10000 epochs).
+#
 # Usage:
-#   bash scripts/run_8AA_train_multi.sh
+#   bash scripts/run_8AA_phase1.sh
 # =============================================================================
 
 set -e
 
-# Prevent system mpi4py (Python 3.12) from conflicting with conda env (Python 3.9)
 export MPI4PY_RC_INITIALIZE=0
 export PYTHONPATH=$(echo "$PYTHONPATH" | tr ':' '\n' | grep -v '/apps/' | tr '\n' ':' | sed 's/:$//')
+export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH}"
 
 # ========================= USER CONFIG =========================
 DATA_DIR="/localhome3/lyy/mdgen_8aa/data/8AA_data"
-RAW_DATA_DIR="/localhome3/lyy/8pep_gb_sim/octapeptides_data/ONE_octapeptides"
-SUFFIX="_i1000"
-RUN_NAME="8AA_sim_912_multi"
+RAW_DATA_DIR="/localhome3/lyy/octapeptides_data"
+SUFFIX="_i100"
+RUN_NAME="8AA_sim_phase1"
 NUM_FRAMES=100
+EPOCHS=2000
+CKPT_FREQ=50
 
-# --- Multi-GPU config ---
-# Use GPUs 1-7 (7 cards), leave GPU 0 free
+# Multi-GPU: GPUs 1-7 (7 cards), leave GPU 0 free
 export CUDA_VISIBLE_DEVICES=1,2,3,4,5,6,7
 NUM_GPUS=7
-
-# --- Training hyperparams ---
-# Per-GPU batch size: 16 (up from 8, ~8.4GB/10.2GB per card)
-# Effective batch size = 16 * 7 = 112
 BATCH_SIZE=16
-
-# Epochs
-EPOCHS=2000
-
-# Learning rate: sqrt-scaled for larger effective batch
-# Original: 1e-4 at bs=8 -> sqrt(112/8) * 1e-4 ≈ 3.7e-4
-LR=3.7e-4
-
-# Mixed precision for speed + memory savings
+LR=2e-4
 PRECISION="bf16-mixed"
 
-CKPT_FREQ=50
 USE_WANDB=""  # set to "--wandb" to enable
 # ===============================================================
 
@@ -47,26 +37,24 @@ SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$SCRIPT_DIR"
 
 echo "============================================"
-echo "  8AA Multi-GPU Training (${NUM_GPUS} GPUs)"
+echo "  Phase 1: 8AA Training (${EPOCHS} epochs)"
+echo "  ${NUM_GPUS} GPUs, bs=${BATCH_SIZE}, ${PRECISION}"
 echo "============================================"
 
-# --- Step 0: Verify data exists ---
-echo ""
-echo "[Step 0] Verifying data..."
+# --- Step 0: Verify data ---
 NPY_COUNT=$(ls "${DATA_DIR}/"*"${SUFFIX}.npy" 2>/dev/null | wc -l)
 if [ "$NPY_COUNT" -eq 0 ]; then
-    echo "ERROR: No .npy files found in ${DATA_DIR} with suffix ${SUFFIX}"
+    echo "ERROR: No .npy files in ${DATA_DIR} with suffix ${SUFFIX}"
+    echo "Run prep_sims.py first."
     exit 1
 fi
-echo "  Found ${NPY_COUNT} .npy files in ${DATA_DIR}"
+echo "  Found ${NPY_COUNT} .npy files"
 
-# --- Step 1: Check splits ---
-echo ""
-echo "[Step 1] Checking split files..."
+# --- Step 1: Generate splits if needed ---
 if [ -f "splits/8AA_train.csv" ] && [ -f "splits/8AA_val.csv" ]; then
     TRAIN_COUNT=$(tail -n +2 splits/8AA_train.csv | wc -l)
     VAL_COUNT=$(tail -n +2 splits/8AA_val.csv | wc -l)
-    echo "  Splits exist: train=${TRAIN_COUNT}, val=${VAL_COUNT}"
+    echo "  Splits: train=${TRAIN_COUNT}, val=${VAL_COUNT}"
 else
     echo "  Generating splits..."
     python -m scripts.generate_8AA_splits \
@@ -75,17 +63,32 @@ else
         --train_frac 0.8 \
         --val_frac 0.1 \
         --test_frac 0.1
+
+    # Validate splits against available .npy files
+    python -c "
+import pandas as pd, os
+suffix, data_dir = '${SUFFIX}', '${DATA_DIR}'
+for s in ['8AA_train', '8AA_val', '8AA_test']:
+    df = pd.read_csv(f'splits/{s}.csv', index_col='name')
+    missing = [n for n in df.index if not os.path.exists(f'{data_dir}/{n}{suffix}.npy')]
+    if missing:
+        df = df.loc[[n for n in df.index if os.path.exists(f'{data_dir}/{n}{suffix}.npy')]]
+        df.to_csv(f'splits/{s}.csv')
+        print(f'  {s}: filtered to {len(df)} (removed {len(missing)} missing)')
+    else:
+        print(f'  {s}: {len(df)} entries - all OK')
+"
 fi
 
-# --- Step 2: Train (multi-GPU DDP) ---
+# --- Step 2: Train Phase 1 ---
 echo ""
-echo "[Step 2] Starting multi-GPU training..."
 echo "  GPUs:            ${CUDA_VISIBLE_DEVICES} (${NUM_GPUS} cards)"
 echo "  Per-GPU batch:   ${BATCH_SIZE}"
 echo "  Effective batch: $((BATCH_SIZE * NUM_GPUS))"
 echo "  Epochs:          ${EPOCHS}"
 echo "  LR:              ${LR}"
 echo "  Precision:       ${PRECISION}"
+echo "  Ckpt freq:       every ${CKPT_FREQ} epochs"
 echo ""
 
 export MODEL_DIR="workdir/${RUN_NAME}"
@@ -111,6 +114,14 @@ python train.py \
 
 echo ""
 echo "============================================"
-echo "  Training complete!"
-echo "  Checkpoints saved to: ${MODEL_DIR}"
+echo "  Phase 1 complete! (${EPOCHS} epochs)"
+echo "  Checkpoints: ${MODEL_DIR}"
+echo ""
+echo "  Next steps:"
+echo "    1. Check loss:  python plot_loss.py ${MODEL_DIR}/log.out --save"
+echo "    2. Quick infer: python sim_inference.py --sim_ckpt ${MODEL_DIR}/best.ckpt \\"
+echo "           --data_dir ${DATA_DIR} --split splits/8AA_test.csv \\"
+echo "           --num_frames 100 --num_rollouts 10 --suffix ${SUFFIX} \\"
+echo "           --xtc --out_dir results/8AA_phase1_test"
+echo "    3. If loss OK:  bash scripts/run_8AA_phase2.sh"
 echo "============================================"

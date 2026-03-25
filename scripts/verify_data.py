@@ -3,7 +3,7 @@
 Usage:
     python -m scripts.verify_data \
         --data_dir /localhome3/lyy/mdgen_8aa/data/8AA_data \
-        --suffix _i1000
+        --suffix _i100
 """
 import argparse
 import os
@@ -11,7 +11,7 @@ import numpy as np
 
 parser = argparse.ArgumentParser(description='Verify preprocessed 8AA .npy files')
 parser.add_argument('--data_dir', type=str, required=True)
-parser.add_argument('--suffix', type=str, default='_i1000')
+parser.add_argument('--suffix', type=str, default='_i100')
 args = parser.parse_args()
 
 files = sorted([f for f in os.listdir(args.data_dir) if f.endswith(f'{args.suffix}.npy')])

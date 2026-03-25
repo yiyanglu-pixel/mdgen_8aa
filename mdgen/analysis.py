@@ -2,6 +2,15 @@ import json
 import os
 
 import numpy as np
+# Restore deprecated numpy aliases removed in numpy 1.24+
+# (required by pyemma internals for TICA/MSM)
+if not hasattr(np, 'bool'):
+    np.bool = bool
+    np.int = int
+    np.float = float
+    np.complex = complex
+    np.object = object
+    np.str = str
 import pyemma
 from tqdm import tqdm
 
@@ -11,55 +20,113 @@ def get_featurizer(name, sidechains=False, cossin=True):
     if sidechains:
         feat.add_sidechain_torsions(cossin=cossin)
     return feat
-    
-def get_featurized_traj(name, sidechains=False, cossin=True):
-    feat = pyemma.coordinates.featurizer(name+'.pdb')
-    feat.add_backbone_torsions(cossin=cossin)
+
+
+class _FeatureDescriptor(list):
+    """Lightweight replacement for pyemma MDFeaturizer.
+
+    Extends list so isinstance(..., list) checks pass (required by
+    pyemma.plots.plot_feature_histograms). Also provides describe()
+    and dimension() for API compat with pyemma MDFeaturizer.
+    """
+
+    def __init__(self, names):
+        super().__init__(names)
+
+    def describe(self):
+        return list(self)
+
+    def dimension(self):
+        return len(self)
+
+
+def _featurize_traj_mdtraj(traj, sidechains=False, cossin=True):
+    """Compute torsion features from an mdtraj.Trajectory using mdtraj directly.
+
+    Produces features in the same order as pyemma:
+      backbone: [phi_1..N-1, psi_0..N-2]
+      sidechain: [chi1_all, chi2_all, chi3_all, chi4_all]
+      cossin: [cos(all), sin(all)] per group
+
+    Returns (_FeatureDescriptor, np.ndarray of shape (n_frames, n_features)).
+    """
+    import mdtraj
+
+    arrays = []
+    feat_names = []
+
+    phi_idx, phi = mdtraj.compute_phi(traj)
+    psi_idx, psi = mdtraj.compute_psi(traj)
+
+    for idx in phi_idx:
+        res = traj.topology.atom(idx[1]).residue
+        feat_names.append(f'PHI {res.name} {res.index}')
+    for idx in psi_idx:
+        res = traj.topology.atom(idx[1]).residue
+        feat_names.append(f'PSI {res.name} {res.index}')
+
+    bb = np.hstack([phi, psi])
+    if cossin:
+        feat_names = [f'COS({n})' for n in feat_names] + \
+                     [f'SIN({n})' for n in feat_names]
+        bb = np.hstack([np.cos(bb), np.sin(bb)])
+    arrays.append(bb)
+
     if sidechains:
-        feat.add_sidechain_torsions(cossin=cossin)
-    traj = pyemma.coordinates.load(name+'.xtc', features=feat)
-    return feat, traj
+        sc_names = []
+        sc_parts = []
+        for chi_func, chi_label in [(mdtraj.compute_chi1, 'CHI1'),
+                                     (mdtraj.compute_chi2, 'CHI2'),
+                                     (mdtraj.compute_chi3, 'CHI3'),
+                                     (mdtraj.compute_chi4, 'CHI4')]:
+            chi_idx, chi = chi_func(traj)
+            if chi.size > 0:
+                sc_parts.append(chi)
+                for idx in chi_idx:
+                    res = traj.topology.atom(idx[1]).residue
+                    sc_names.append(f'{chi_label} {res.name} {res.index}')
+        if sc_parts:
+            sc = np.hstack(sc_parts)
+            if cossin:
+                sc_names = [f'COS({n})' for n in sc_names] + \
+                           [f'SIN({n})' for n in sc_names]
+                sc = np.hstack([np.cos(sc), np.sin(sc)])
+            feat_names.extend(sc_names)
+            arrays.append(sc)
+
+    traj_feat = np.hstack(arrays) if arrays else np.empty((traj.n_frames, 0))
+    return _FeatureDescriptor(feat_names), traj_feat
+
+
+def get_featurized_traj(name, sidechains=False, cossin=True):
+    import mdtraj
+    traj = mdtraj.load(name + '.xtc', top=name + '.pdb')
+    return _featurize_traj_mdtraj(traj, sidechains=sidechains, cossin=cossin)
+
 
 def get_featurized_traj_octapeptide(md_dir, name, sidechains=False, cossin=True):
     """Load featurized reference MD trajectory for 8AA octapeptides.
 
-    Handles the 8AA directory structure: {md_dir}/{name}/topology_noH.pdb + prod.xtc.
-    If prod.xtc has H atoms (mismatches topology_noH.pdb), falls back to
-    topology.pdb with heavy-atom selection.
+    Strips ACE/NME capping groups, then computes torsion features with mdtraj
+    directly (completely bypasses pyemma to avoid numpy >= 1.24 compat issues).
     """
     import mdtraj
+
     base = os.path.join(md_dir, name)
-    pdb_noH = os.path.join(base, 'topology_noH.pdb')
-    pdb_full = os.path.join(base, 'topology.pdb')
-    xtc_path = os.path.join(base, 'prod.xtc')
+    pdb_noH = os.path.join(base, f'{name}_noH.pdb')
+    xtc_noH = os.path.join(base, f'{name}_noH.xtc')
 
-    # Try topology_noH.pdb first
-    try:
-        feat = pyemma.coordinates.featurizer(pdb_noH)
-        feat.add_backbone_torsions(cossin=cossin)
-        if sidechains:
-            feat.add_sidechain_torsions(cossin=cossin)
-        traj = pyemma.coordinates.load(xtc_path, features=feat)
-        return feat, traj
-    except Exception:
-        pass
+    traj = mdtraj.load(xtc_noH, top=pdb_noH)
 
-    # Fallback: load with topology.pdb, strip H, save temp files
-    traj = mdtraj.load(xtc_path, top=pdb_full)
-    heavy = traj.top.select('not element H')
-    traj = traj.atom_slice(heavy)
+    # Strip ACE/NME capping groups
+    standard_res = [r.index for r in traj.topology.residues
+                    if r.name not in ('ACE', 'NME')]
+    if len(standard_res) < traj.topology.n_residues:
+        atom_indices = traj.topology.select(
+            ' or '.join(f'resid {r}' for r in standard_res))
+        traj = traj.atom_slice(atom_indices)
 
-    tmp_pdb = os.path.join(base, '_ref_noH.pdb')
-    tmp_xtc = os.path.join(base, '_ref_noH.xtc')
-    traj[0].save(tmp_pdb)
-    traj.save(tmp_xtc)
-
-    feat = pyemma.coordinates.featurizer(tmp_pdb)
-    feat.add_backbone_torsions(cossin=cossin)
-    if sidechains:
-        feat.add_sidechain_torsions(cossin=cossin)
-    traj_featurized = pyemma.coordinates.load(tmp_xtc, features=feat)
-    return feat, traj_featurized
+    return _featurize_traj_mdtraj(traj, sidechains=sidechains, cossin=cossin)
 
 
 def get_featurized_atlas_traj(name, sidechains=False, cossin=True):

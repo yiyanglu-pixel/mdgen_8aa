@@ -52,14 +52,27 @@ def main():
 #     return prot_frames.compose(Rigid(rots, None))
 
 
-def traj_to_atom14(traj):
-    arr = np.zeros((traj.n_frames, traj.n_residues, 14, 3), dtype=np.float16)
-    for i, resi in enumerate(traj.top.residues):
+def traj_to_atom14(traj, residue_indices=None):
+    """Convert trajectory to atom14 representation.
+
+    Args:
+        traj: mdtraj trajectory
+        residue_indices: list of residue indices to include (default: all)
+    """
+    if residue_indices is None:
+        residue_indices = list(range(traj.n_residues))
+    n_res = len(residue_indices)
+    arr = np.zeros((traj.n_frames, n_res, 14, 3), dtype=np.float16)
+    for out_i, res_i in enumerate(residue_indices):
+        resi = list(traj.top.residues)[res_i]
+        if resi.name not in rc.restype_name_to_atom14_names:
+            print(f'WARNING: residue {resi.name} not in atom14 map, skipping')
+            continue
         for at in resi.atoms:
             if at.name not in rc.restype_name_to_atom14_names[resi.name]:
                 print(resi.name, at.name, 'not found'); continue
             j = rc.restype_name_to_atom14_names[resi.name].index(at.name)
-            arr[:,i,j] = traj.xyz[:,at.index] * 10.0
+            arr[:,out_i,j] = traj.xyz[:,at.index] * 10.0
     return arr
 
 if args.atlas:
@@ -71,21 +84,24 @@ if args.atlas:
             arr = traj_to_atom14(traj)
             np.save(f'{args.outdir}/{name}_R{i}{args.suffix}.npy', arr[::args.stride])
 elif args.octapeptides:
+    # Capping groups (ACE/NME) are non-standard residues
+    CAPPING_RESIDUES = {'ACE', 'NME', 'NHE'}
+
     def do_job(name):
-        prmtop_path = f'{args.sim_dir}/{name}/prmtop'
-        xtc_path = f'{args.sim_dir}/{name}/prod.xtc'
+        traj = mdtraj.load(f'{args.sim_dir}/{name}/{name}_noH.xtc',
+                           top=f'{args.sim_dir}/{name}/{name}_noH.pdb')
 
-        # Use AMBER prmtop as topology (matches XTC atom set exactly)
-        top = mdtraj.load_prmtop(prmtop_path)
-        traj = mdtraj.load(xtc_path, top=top)
-        traj.atom_slice([a.index for a in traj.top.atoms if a.element.symbol != 'H'], True)
+        # Identify standard amino acid residues (skip ACE/NME capping groups)
+        std_indices = [i for i, r in enumerate(traj.top.residues)
+                       if r.name not in CAPPING_RESIDUES]
 
-        if traj.n_residues != 8:
-            print(f'WARNING: {name} has {traj.n_residues} residues, skipping')
+        if len(std_indices) != 8:
+            print(f'WARNING: {name} has {len(std_indices)} standard residues '
+                  f'({traj.n_residues} total), skipping')
             return
 
         traj.superpose(traj)
-        arr = traj_to_atom14(traj)
+        arr = traj_to_atom14(traj, residue_indices=std_indices)
         np.save(f'{args.outdir}/{name}{args.suffix}.npy', arr[::args.stride])
 else:
     def do_job(name):

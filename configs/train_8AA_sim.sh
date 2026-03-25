@@ -2,11 +2,17 @@
 # Train 8AA forward simulation model
 # Assumes splits and preprocessed data are already generated
 #
-# SUFFIX must match preprocessing:
-#   10ns high-freq data (stride=1000): --suffix _i1000
-#   100ns production data (stride=100): --suffix _i100
+# Usage:
+#   bash configs/train_8AA_sim.sh
 
-SUFFIX=${SUFFIX:-_i1000}  # default to 10ns test data
+set -e
+
+# Environment setup (avoid GLIBCXX and PYTHONPATH conflicts)
+export MPI4PY_RC_INITIALIZE=0
+export PYTHONPATH=$(echo "$PYTHONPATH" | tr ':' '\n' | grep -v '/apps/' | tr '\n' ':' | sed 's/:$//')
+export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH}"
+
+SUFFIX=${SUFFIX:-_i100}
 
 MODEL_DIR=workdir/8AA_sim python train.py \
     --sim_condition \

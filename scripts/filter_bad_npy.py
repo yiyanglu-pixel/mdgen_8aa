@@ -4,7 +4,7 @@ Usage:
     python -m scripts.filter_bad_npy \
         --data_dir /localhome3/lyy/mdgen_8aa/data/8AA_data \
         --splits_dir splits \
-        --suffix _i1000
+        --suffix _i100
 """
 import argparse
 import os
@@ -15,7 +15,7 @@ import pandas as pd
 parser = argparse.ArgumentParser(description='Filter bad .npy files from split CSVs')
 parser.add_argument('--data_dir', type=str, required=True)
 parser.add_argument('--splits_dir', type=str, default='splits')
-parser.add_argument('--suffix', type=str, default='_i1000')
+parser.add_argument('--suffix', type=str, default='_i100')
 parser.add_argument('--dry_run', action='store_true', help='Only report, do not modify CSVs')
 args = parser.parse_args()
 
