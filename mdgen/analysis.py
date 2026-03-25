@@ -24,7 +24,8 @@ def get_featurized_traj_octapeptide(md_dir, name, sidechains=False, cossin=True)
     """Load featurized reference MD trajectory for 8AA octapeptides.
 
     Handles the 8AA directory structure: {md_dir}/{name}/{name}_noH.pdb + {name}_noH.xtc.
-    Strips ACE/NME capping groups before featurizing.
+    Strips ACE/NME capping groups, then computes torsion features with mdtraj
+    directly (bypasses pyemma numpy compatibility issues).
     """
     import mdtraj
     import tempfile
@@ -42,7 +43,7 @@ def get_featurized_traj_octapeptide(md_dir, name, sidechains=False, cossin=True)
             ' or '.join(f'resid {r}' for r in standard_res))
         traj = traj.atom_slice(atom_indices)
 
-    # Save stripped topology as temp PDB for pyemma featurizer
+    # Build pyemma featurizer from stripped topology (for describe() only)
     fd, tmp_pdb = tempfile.mkstemp(suffix='.pdb')
     os.close(fd)
     try:
@@ -51,9 +52,38 @@ def get_featurized_traj_octapeptide(md_dir, name, sidechains=False, cossin=True)
         feat.add_backbone_torsions(cossin=cossin)
         if sidechains:
             feat.add_sidechain_torsions(cossin=cossin)
-        traj_feat = feat.transform(traj)
     finally:
         os.unlink(tmp_pdb)
+
+    # Compute features with mdtraj directly (same order as pyemma:
+    # backbone phi then psi, then sidechain chi1/2/3/4)
+    arrays = []
+    _, phi = mdtraj.compute_phi(traj)
+    _, psi = mdtraj.compute_psi(traj)
+    bb = np.hstack([phi, psi])
+    if cossin:
+        bb = np.hstack([np.cos(bb), np.sin(bb)])
+    arrays.append(bb)
+
+    if sidechains:
+        sc_parts = []
+        for chi_func in [mdtraj.compute_chi1, mdtraj.compute_chi2,
+                         mdtraj.compute_chi3, mdtraj.compute_chi4]:
+            _, chi = chi_func(traj)
+            if chi.size > 0:
+                sc_parts.append(chi)
+        if sc_parts:
+            sc = np.hstack(sc_parts)
+            if cossin:
+                sc = np.hstack([np.cos(sc), np.sin(sc)])
+            arrays.append(sc)
+
+    traj_feat = np.hstack(arrays) if arrays else np.empty((traj.n_frames, 0))
+
+    if traj_feat.shape[1] != feat.dimension():
+        raise ValueError(
+            f'Feature dimension mismatch for {name}: '
+            f'mdtraj produced {traj_feat.shape[1]}, pyemma expects {feat.dimension()}')
 
     return feat, traj_feat
 
