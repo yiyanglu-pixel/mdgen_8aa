@@ -1,6 +1,16 @@
 #!/bin/bash
 # Train 8AA forward simulation model
 # Assumes splits and preprocessed data are already generated
+#
+# Usage:
+#   bash configs/train_8AA_sim.sh
+
+set -e
+
+# Environment setup (avoid GLIBCXX and PYTHONPATH conflicts)
+export MPI4PY_RC_INITIALIZE=0
+export PYTHONPATH=$(echo "$PYTHONPATH" | tr ':' '\n' | grep -v '/apps/' | tr '\n' ':' | sed 's/:$//')
+export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH}"
 
 SUFFIX=${SUFFIX:-_i100}
 

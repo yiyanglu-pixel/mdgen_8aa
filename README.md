@@ -10,13 +10,29 @@ The original MDGen introduces generative modeling of molecular trajectories as a
 
 ## Installation
 
-```
+We recommend using conda to manage the environment, which avoids common system library conflicts (see [Troubleshooting](#troubleshooting)):
+
+```bash
+conda create -n mdgen python=3.9 -y
+conda activate mdgen
+
+# Install libstdc++ from conda-forge to avoid GLIBCXX version errors
+conda install -c conda-forge libstdcxx-ng -y
+
 pip install numpy==1.21.2 pandas==1.5.3
 pip install torch==1.12.1+cu113 -f https://download.pytorch.org/whl/torch_stable.html
 pip install pytorch_lightning==2.0.4 mdtraj==1.9.9 biopython==1.79
 pip install wandb dm-tree einops torchdiffeq fair-esm pyEMMA
 pip install matplotlib==3.7.2 numpy==1.21.2
 ```
+
+**Important**: Before running any training or inference script, ensure the environment is set up:
+```bash
+conda activate mdgen
+export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH}"
+```
+
+> The training shell scripts (`scripts/run_8AA_*.sh`) set `LD_LIBRARY_PATH` automatically. For standalone Python commands (e.g., inference), you must set it manually or add it to `~/.bashrc`.
 
 ## Datasets
 
@@ -297,6 +313,115 @@ print(f'Torsion JSD: {np.nanmean(all_torsion_jsd):.4f} ± {np.nanstd(all_torsion
 
 - Design/inpainting: indices are auto-derived from `--crop` (terminals=conditioned, interior=designed) but have **not been validated** on 8AA data.
 - Multi-chain, membrane proteins, and ligand conditioning are not supported.
+
+## Troubleshooting
+
+### 1. `GLIBCXX_3.4.29 not found`
+
+```
+ImportError: /lib64/libstdc++.so.6: version `GLIBCXX_3.4.29' not found
+```
+
+**Cause**: The system `libstdc++.so.6` is too old (e.g., CentOS 7 / GCC < 11), but pip-installed packages (pandas, etc.) were compiled against newer versions.
+
+**Fix**:
+```bash
+# Install newer libstdc++ into the conda environment
+conda install -c conda-forge libstdcxx-ng -y
+
+# Set LD_LIBRARY_PATH so conda's library is found first
+export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH}"
+```
+
+> All `scripts/run_8AA_*.sh` scripts set this automatically. For standalone commands (inference, analysis), set it manually or add to `~/.bashrc`.
+
+**Verify**:
+```bash
+strings "${CONDA_PREFIX}/lib/libstdc++.so.6" | grep GLIBCXX | tail -5
+# Should show GLIBCXX_3.4.29 or higher
+```
+
+### 2. Silent NaN in training loss
+
+**Symptom**: Training runs without errors but loss becomes NaN after some epochs.
+
+**Cause**: Numerical instability in bf16-mixed precision with large models, or corrupted input data.
+
+**Fix**:
+1. Monitor loss regularly: `python plot_loss.py workdir/<run_name>/log.out --save`
+2. Validate data before training: `python -m scripts.diagnose_data --data_dir data/8AA_data --suffix _i100`
+3. Filter out corrupted entries: `python -m scripts.filter_bad_npy --data_dir data/8AA_data --suffix _i100 --splits splits/8AA_train.csv splits/8AA_val.csv splits/8AA_test.csv`
+
+### 3. OOM (Out of Memory) with 1000-frame training
+
+**Symptom**: `CUDA out of memory` when using `--num_frames 1000`.
+
+**Cause**: 1000-frame sequences consume ~10x more GPU memory than 100-frame sequences.
+
+**Fix**: Reduce batch size and scale learning rate accordingly:
+- `--batch_size 2` (down from 16)
+- `--lr 5e-5` (sqrt-scaled: `2e-4 * sqrt(2*7 / 16*7) ≈ 5e-5`)
+- See `scripts/run_8AA_1000frames.sh` for the full config
+
+### 4. `PYTHONPATH` conflicts with system modules
+
+**Symptom**: Import errors mentioning system-installed packages under `/apps/` or similar paths.
+
+**Fix**: The training scripts automatically filter these:
+```bash
+export PYTHONPATH=$(echo "$PYTHONPATH" | tr ':' '\n' | grep -v '/apps/' | tr '\n' ':' | sed 's/:$//')
+```
+
+For standalone commands, either run this export or unset PYTHONPATH entirely:
+```bash
+unset PYTHONPATH  # if you only need conda packages
+```
+
+### 5. `MPI4PY` initialization errors
+
+**Symptom**: MPI-related crashes or warnings when using PyTorch Lightning DDP.
+
+**Fix**:
+```bash
+export MPI4PY_RC_INITIALIZE=0
+```
+
+### 6. numpy version mismatch / collation errors
+
+**Symptom**: `ValueError` during data loading or shape mismatch in collation.
+
+**Cause**: numpy >= 1.24 changed how structured arrays and type promotion work.
+
+**Fix**: Pin numpy to the version specified in the installation:
+```bash
+pip install numpy==1.21.2
+```
+
+### 7. ACE/NME capping groups not stripped
+
+**Symptom**: Preprocessed data has shape `(T, 10, 14, 3)` instead of `(T, 8, 14, 3)`.
+
+**Cause**: Raw octapeptide trajectories include ACE (N-terminal) and NME (C-terminal) capping residues.
+
+**Fix**: Ensure `--octapeptides` flag is passed to `prep_sims.py` — it automatically strips ACE/NME:
+```bash
+python -m scripts.prep_sims --split splits/8AA.csv --sim_dir $SIM_DIR --outdir data/8AA_data \
+    --num_workers 8 --suffix _i100 --stride 100 --octapeptides
+```
+
+Verify shapes after preprocessing:
+```bash
+python -m scripts.verify_data --data_dir data/8AA_data --suffix _i100
+# Expected: (T, 8, 14, 3), dtype=float16
+```
+
+### 8. Hydrogen atoms in trajectory
+
+**Symptom**: Atom count mismatch or unexpected atom14 mapping errors.
+
+**Cause**: The model expects hydrogen-free trajectories. Raw MD outputs include hydrogens.
+
+**Fix**: Generate `{name}_noH.xtc` and `{name}_noH.pdb` before preprocessing (see [Data Preparation](#data-preparation) section).
 
 ## License
 
