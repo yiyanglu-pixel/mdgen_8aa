@@ -423,6 +423,31 @@ python -m scripts.verify_data --data_dir data/8AA_data --suffix _i100
 
 **Fix**: Generate `{name}_noH.xtc` and `{name}_noH.pdb` before preprocessing (see [Data Preparation](#data-preparation) section).
 
+### 9. Analysis script pyemma/numpy compatibility errors
+
+**Symptom**: Running `analyze_8AA_sim.py` fails with one or more of:
+```
+AttributeError: module 'numpy' has no attribute 'bool'
+ValueError: arrays to stack must be passed as a "sequence" type such as list or tuple
+ValueError: feature_labels must be a list of feature labels, a pyemma featurizer object or None
+```
+
+**Cause**: pyemma was written for numpy < 1.24, but later numpy versions removed deprecated aliases (`np.bool`, `np.int`, etc.) and tightened type checks (rejecting generators in `np.stack`/`np.hstack`). pip/conda often silently upgrades numpy beyond 1.21.2 when installing other packages, triggering these incompatibilities throughout pyemma's internals — including featurizer initialization, transform, and plotting.
+
+**What was changed in `mdgen/analysis.py`** (relative to the original MDGen):
+
+| Change | Why |
+|--------|-----|
+| Monkey-patch `np.bool = bool`, `np.int = int`, etc. before `import pyemma` | pyemma's TICA/MSM code uses `np.bool` and `np.int` internally, removed in numpy 1.24 |
+| Replace `pyemma.coordinates.featurizer` + `pyemma.coordinates.load` with direct `mdtraj.compute_phi/psi/chi1-4` calls | pyemma's `add_sidechain_torsions()` and `feat.transform()` pass generators to `np.hstack`, which fails in numpy >= 1.24 |
+| New `_featurize_traj_mdtraj()` shared helper | Unified torsion feature computation for both `get_featurized_traj` (generated) and `get_featurized_traj_octapeptide` (reference) |
+| New `_FeatureDescriptor(list)` class replacing pyemma's `MDFeaturizer` | Extends `list` so `pyemma.plots.plot_feature_histograms` `isinstance(..., list)` check passes; also provides `describe()` and `dimension()` for API compat |
+| ACE/NME stripping in `get_featurized_traj_octapeptide` | Reference `_noH.pdb/xtc` files still contain capping groups; must be removed before computing torsion angles |
+
+**What is NOT changed**: pyemma is still used for TICA (`pyemma.coordinates.tica`), k-means clustering (`pyemma.coordinates.cluster_kmeans`), MSM estimation (`pyemma.msm.estimate_markov_model`), and free energy surface plotting (`pyemma.plots.plot_free_energy`). These functions are compatible with the numpy alias monkey-patch.
+
+**Result equivalence**: The mdtraj-based torsion computation produces identical results to pyemma's featurizer, because pyemma internally calls the same `mdtraj.compute_phi/psi/chi*` functions. Feature ordering is preserved: `[phi_all, psi_all, chi1_all, chi2_all, chi3_all, chi4_all]`, with optional `[cos(group), sin(group)]` wrapping per group.
+
 ## License
 
 MIT. Additional licenses may apply for third-party source code noted in file headers.
