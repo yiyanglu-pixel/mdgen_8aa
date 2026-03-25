@@ -2,6 +2,15 @@ import json
 import os
 
 import numpy as np
+# Restore deprecated numpy aliases removed in numpy 1.24+
+# (required by pyemma internals for TICA/MSM)
+if not hasattr(np, 'bool'):
+    np.bool = bool
+    np.int = int
+    np.float = float
+    np.complex = complex
+    np.object = object
+    np.str = str
 import pyemma
 from tqdm import tqdm
 
